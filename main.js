@@ -767,6 +767,23 @@ const GEAR_SLOTS = [
 /* The menu offers what this save has actually unlocked. Locked prizes are
    not listed at all — a greyed-out row you cannot explain is worse than
    an absence. */
+/* What the tray menu offers besides the milestone prizes. These sat
+   between the lock tables and setPetSlot, and went out with them when the
+   tables moved to missions.js — the menu then threw on every right-click.
+   Nothing loads main.js in a test, so nothing caught it. */
+const EYES = [['기본', 'basic'], ['졸림', 'sleepy'], ['반짝', 'sparkle']];
+const STATES = [
+  ['가만히', 'idle'], ['손 흔들기', 'waving'], ['점프', 'jumping'],
+  ['오른쪽 달리기', 'running-right'], ['왼쪽 달리기', 'running-left'],
+  ['작업 중', 'running'], ['기다리는 중', 'waiting'],
+  ['검토 중', 'review'], ['실패', 'failed']
+];
+
+function setPetField(key, value) {
+  currentPet()[key] = value;
+  pushConfig();
+}
+
 /* The prize tables live in missions.js, next to the milestones that hold
    them back: an item losing its lock is silent — it just turns up in the
    menu for free — so the two have to be read side by side. */
@@ -2435,4 +2452,71 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('window-all-closed', () => app.quit());
   app.on('activate', () => { if (!win) createWindow(); });
+
+  /* ---------- smoke check ----------
+     main.js is the one file no unit test can require: it needs Electron
+     running. So a plain ReferenceError in a menu — a name that went out
+     with a refactor — sits there until somebody right-clicks the pet.
+     That is exactly what shipped in 1.24.0.
+
+     `npm run smoke` boots the app, builds every menu and payload once,
+     and exits non-zero on the first throw. It touches nothing the user
+     owns: MOKA_SMOKE also forces a throwaway profile. */
+  if (process.env.MOKA_SMOKE) app.whenReady().then(() => setTimeout(smokeCheck, 1200));
 }
+
+function smokeCheck() {
+  const checks = [
+    ['펫 우클릭 메뉴', () => buildMenu()],
+    ['펫 창 payload', () => payload()],
+    ['돌보기 payload', () => carePayload()],
+    ['설정 payload', () => settingsPayload()],
+    ['소품 목록', () => gearSlots()],
+    ['집 꾸미기 목록', () => roomSlots()],
+    ['이정표 진행도', () => MISSIONS.map((m) => missionNow(m))],
+    ['가족 관계', () => petIds().map((a) => petIds().map((b) => pairProblem(a, b)))]
+  ];
+
+  /* Both halves of the save, because they take different paths. A brand
+     new profile is holding an egg, and buildMenu() returns early for an
+     egg — so a name missing from the grown-up half of the menu passed
+     this check the first time it was written. */
+  const worlds = [
+    ['알을 품은 새 저장본', () => {}],
+    ['부화 · 가족까지 있는 저장본', () => {
+      const grown = (c) => {
+        c.egg = false; c.age = 12; c.hunger = 80; c.fun = 80; c.energy = 80;
+        c.tricks = care.TRICKS.slice(0, 3); c.bornAt = Date.now() - 86400000;
+        return c;
+      };
+      const keys = SPECIES.slice(0, 2).map((sp) => sp.key);
+      keys.forEach((k) => grown(cfg.pets[k].care));
+      const kid = 'smoke-kid';
+      cfg.pets[kid] = blankPet(keys[0]);
+      cfg.pets[kid].parents = keys.slice();
+      grown(cfg.pets[kid].care);
+      cfg.pets[keys[0]].mate = keys[1];
+      cfg.pets[keys[1]].mate = keys[0];
+      cfg.eggKey = null;
+      cfg.species = keys[0];
+      cfg.missions.done = MISSIONS.map((m) => m.id);   // every prize unlocked
+    }]
+  ];
+
+  let bad = 0;
+  worlds.forEach(([label, setUp]) => {
+    console.log('\n■ ' + label);
+    try { setUp(); } catch (e) { bad += 1; console.error('  FAIL 준비 — ' + e.message); return; }
+    checks.forEach(([name, run]) => {
+      try { run(); console.log('  ok   ' + name); }
+      catch (e) {
+        bad += 1;
+        console.error('  FAIL ' + name + ' — ' + (e && e.message));
+        console.error(e && e.stack);
+      }
+    });
+  });
+  console.log(bad ? ('\n' + bad + ' failed') : '\n모두 통과');
+  app.exit(bad ? 1 : 0);
+}
+
