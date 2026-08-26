@@ -14,16 +14,19 @@
 
 | | 파일 |
 |---|---|
-| macOS (Apple Silicon) | `Moka Pet-x.y.z-arm64.dmg` |
-| macOS (Intel) | `Moka Pet-x.y.z.dmg` |
-| Windows 설치본 | `Moka Pet Setup x.y.z.exe` |
-| Windows 무설치 | `Moka Pet x.y.z.exe` |
+| macOS (Apple Silicon) | `Moka-Pet-x.y.z-macOS-arm64.zip` |
+| macOS (Intel) | `Moka-Pet-x.y.z-macOS-x64.zip` |
+| Windows | `Moka-Pet-Setup-x.y.z.exe` |
 
-서명하지 않은 빌드라 처음 열 때 경고가 뜹니다. macOS는 우클릭 → 열기,
-Windows는 SmartScreen에서 "추가 정보" → "실행"을 누르면 됩니다.
+**macOS** — zip 을 풀고 안에 있는 `설치.command` 를 두 번 누르세요.
+앱을 응용 프로그램 폴더에 넣고, macOS 가 막는 격리 표시를 떼고, 실행까지 합니다.
+dmg 만 따로 받아 직접 옮기셔도 됩니다.
 
-새 버전이 나오면 앱이 알려줍니다. 자동으로 설치되지는 않고, 받는 페이지를 열어 줍니다.
-(서명 없는 macOS 앱은 스스로를 교체할 수 없습니다.)
+**Windows** — 설치 파일을 실행하세요. 서명이 없어 SmartScreen 이 막으면
+"추가 정보" → "실행" 을 누르면 됩니다.
+
+새 버전이 나오면 앱이 알려줍니다. Windows 는 자동으로 받아 설치하고,
+macOS 는 받는 페이지를 열어 줍니다 — 서명 없는 macOS 앱은 스스로를 교체할 수 없습니다.
 
 ---
 

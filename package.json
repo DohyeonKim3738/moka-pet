@@ -75,12 +75,6 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ]
     },
@@ -106,9 +100,6 @@
         "repo": "moka-pet"
       }
     ],
-    "portable": {
-      "artifactName": "Moka-Pet-${version}-portable.${ext}"
-    },
     "afterPack": "scripts/afterPack.js"
   },
   "dependencies": {
