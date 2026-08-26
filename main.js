@@ -88,6 +88,7 @@ function blankPet(key) {
     name: s.name, species: key, fur: s.fur, belly: s.belly, eyes: 'basic',
     props: { head: s.prop || 'none', eyes: 'none', hand: 'none', body: 'none' },
     room: { back: 'none', floor: 'none', left: 'none', right: 'none' },
+    mate: null,
     care: care.blank()
   };
 }
@@ -219,6 +220,18 @@ function loadConfig() {
     if (!SP[cfg.pets[id].species]) cfg.pets[id].species = SP[id] ? id : SPECIES[0].key;
     const pet = cfg.pets[id];
     if (!pet.room || typeof pet.room !== 'object') pet.room = {};
+    // Saves made before pairs were kept: read the partner back off the
+    // children. Has to run here, after every pet — including the children
+    // — is loaded, or there is nothing to read it from.
+    if (typeof pet.mate !== 'string' || !cfg.pets[pet.mate]) {
+      pet.mate = null;
+      petIds().some((kid) => {
+        const par = cfg.pets[kid].parents;
+        if (!Array.isArray(par) || par.indexOf(id) < 0) return false;
+        pet.mate = par.find((k) => k !== id && cfg.pets[k]) || null;
+        return !!pet.mate;
+      });
+    }
     ['back', 'floor', 'left', 'right'].forEach(k => {
       if (typeof pet.room[k] !== 'string') pet.room[k] = 'none';
     });
@@ -1874,44 +1887,77 @@ function mixHex(a, b) {
   }).join('');
 }
 
-/* Everyone this one descends from, a few generations up. Walking `parents`
-   is the only record of who came from whom. */
-function ancestorsOf(id, depth, out) {
-  out = out || new Set();
+/* Everyone this one descends from and how far back, in generations.
+   Walking `parents` is the only record of who came from whom. */
+function ancestorDepths(id, depth, out) {
+  out = out || new Map();
   if (depth === undefined) depth = 6;
-  const p = (cfg.pets[id] && cfg.pets[id].parents) || [];
   if (depth <= 0) return out;
+  const p = (cfg.pets[id] && cfg.pets[id].parents) || [];
   p.forEach((k) => {
-    if (cfg.pets[k] && !out.has(k)) { out.add(k); ancestorsOf(k, depth - 1, out); }
+    if (!cfg.pets[k]) return;
+    const step = 7 - depth;                       // 1 = parent, 2 = grandparent
+    if (!out.has(k) || out.get(k) > step) out.set(k, step);
+    ancestorDepths(k, depth - 1, out);
   });
   return out;
 }
 
-/* Close family, and why. Age already keeps children out of this entirely
-   (MATE_AGE is 8), but nothing stopped a grown child pairing with the
-   parent that raised it, or two of the same litter with each other —
-   which is what the family tree then drew, plainly, for anyone to see.
-   Cousins are left alone: with twenty places in the house, blocking every
-   shared ancestor would end the family after two generations. */
+/* Close family, and what kind. Age already keeps children out of this
+   entirely (MATE_AGE is 8); this is about who is whose.
+
+   The rule is any shared ancestor, which covers siblings, uncle and niece,
+   and cousins in one stroke. Two separate lines can still be crossed —
+   the children of one pair and the children of another share nobody — so
+   the family keeps going, it just has to go outward. */
 function kinship(aId, bId) {
   if (aId === bId) return '자기 자신';
-  if (ancestorsOf(aId).has(bId)) return '부모예요';
-  if (ancestorsOf(bId).has(aId)) return '자식이에요';
-  const pa = ((cfg.pets[aId] || {}).parents || []).filter((k) => cfg.pets[k]);
-  const pb = ((cfg.pets[bId] || {}).parents || []).filter((k) => cfg.pets[k]);
-  if (pa.some((k) => pb.indexOf(k) >= 0)) return '형제예요';
+  const A = ancestorDepths(aId), B = ancestorDepths(bId);
+
+  if (A.has(bId)) return A.get(bId) === 1 ? '부모예요' : '조상이에요';
+  if (B.has(aId)) return B.get(aId) === 1 ? '자식이에요' : '자손이에요';
+
+  let da = 0, db = 0;
+  A.forEach((depth, k) => {
+    if (!B.has(k)) return;
+    if (!da || depth + B.get(k) < da + db) { da = depth; db = B.get(k); }
+  });
+  if (!da) return null;
+  if (da === 1 && db === 1) return '형제예요';
+  if (Math.min(da, db) === 1) return '삼촌·조카예요';
+  return '한 핏줄이에요';
+}
+
+/* Who this one has already paired with. A pet keeps one partner: taking a
+   second would make the family tree a diagram of something else. If the
+   partner is no longer in the house the tie lapses. */
+function mateOf(id) {
+  const m = cfg.pets[id] && cfg.pets[id].mate;
+  return (m && cfg.pets[m]) ? m : null;
+}
+
+/* `aId` is the pet you are looking at, so the wording has to keep the two
+   sides apart: "아빠의 짝이에요" under someone else's name reads as though
+   THEY were taken, when in fact it is the pet in front of you that is. */
+function pairProblem(aId, bId) {
+  const kin = kinship(aId, bId);
+  if (kin) return kin;
+  const mb = mateOf(bId);
+  if (mb && mb !== aId) return cfg.pets[mb].name + '의 짝이에요';
+  const ma = mateOf(aId);
+  if (ma && ma !== bId) return '짝이 있어요';      // said in full above the list
   return null;
 }
 
 function mateableIds(exceptId) {
   return hatchedKeys().filter((k) => k !== exceptId &&
-    care.canMate(cfg.pets[k].care) && !kinship(exceptId, k));
+    care.canMate(cfg.pets[k].care) && !pairProblem(exceptId, k));
 }
 
 function breed(aId, bId) {
   const a = cfg.pets[aId], b = cfg.pets[bId];
   if (!a || !b || aId === bId) return false;
-  if (kinship(aId, bId)) return false;          // close family
+  if (pairProblem(aId, bId)) return false;      // family, or already paired
   if (!care.canMate(a.care) || !care.canMate(b.care)) return false;
   if (petIds().length >= MAX_PETS) return false;
 
@@ -1934,6 +1980,8 @@ function breed(aId, bId) {
   pet.care = care.inherit(care.blank(), a.care, b.care);
 
   cfg.pets[id] = pet;
+  a.mate = bId;                    // one partner, for good
+  b.mate = aId;
   care.markMated(a.care);
   care.markMated(b.care);
   const born = '의 사이에 「' + pet.name + '」' + care.ga(pet.name) + ' 생겼어요';
@@ -2077,9 +2125,10 @@ function carePayload() {
   });
   // Listed with the reason rather than quietly missing, the same way a
   // prize you have not earned is still shown.
+  v.myMate = mateOf(cfg.species) ? cfg.pets[mateOf(cfg.species)].name : null;
   v.mates = hatchedKeys().filter((k) => k !== cfg.species).map((k) => ({
     id: k, name: cfg.pets[k].name,
-    no: kinship(cfg.species, k) || care.whyNotMate(cfg.pets[k].care)
+    no: pairProblem(cfg.species, k) || care.whyNotMate(cfg.pets[k].care)
   }));
   const myParents = currentPet().parents;
   v.parents = myParents && myParents.every((k) => cfg.pets[k])

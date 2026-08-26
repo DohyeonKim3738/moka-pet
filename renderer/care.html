@@ -407,6 +407,9 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       out += '<div class="ttl">부모 · ' + c.parents[0] + ' × ' + c.parents[1] + '</div>';
     }
     out += '<div class="ttl">짝짓기</div>';
+    if (c.myMate) {
+      out += '<div class="none">이미 ' + c.myMate + '와 짝이에요 \u2005·\u2005 다른 아이와는 맺어지지 않아요</div>';
+    }
     if (c.full) {
       out += '<div class="none">식구가 가득 찼어요</div>';
     } else if (c.mateBlocked) {
