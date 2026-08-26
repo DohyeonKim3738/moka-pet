@@ -24,7 +24,6 @@ const POOP_EVERY_MIN = 180;
 const POOP_MAX = 4;
 const POOP_SPOTS = [2, 44, 10, 36];  // dot columns beside the pet
 
-const DAILY_EXP_CAP = 200;
 
 /* ---------- how it grows up ----------
    Two pets of the same species should not end up the same. What you fed
@@ -368,12 +367,17 @@ function stageFor(c) {
 
 /* ---------- experience ---------- */
 
+/* No daily ceiling. There used to be one, and it was the wrong tool: the
+   thing that stops you rushing a pet is that its needs refill on a clock,
+   not on a counter. A full round of care from empty is worth about 78 exp;
+   doing it again straight away is worth 18, because it is no longer hungry
+   or bored. Someone who looks in often should get further, and now does.
+   `dayExp` is still counted — it is worth seeing what today came to. */
 function award(c, amount) {
   const today = dayKey(Date.now());
   if (c.dayKey !== today) { c.dayKey = today; c.dayExp = 0; }
   decayTraits(c, Date.now());
-  const room = Math.max(0, DAILY_EXP_CAP - c.dayExp);
-  const gain = Math.min(amount, room);
+  const gain = Math.max(0, amount);
   if (gain <= 0) return { gain: 0, aged: false };
 
   c.exp += gain;
@@ -796,7 +800,6 @@ function view(c) {
     exp: Math.round(c.exp),
     expNeed: needFor(c.age),
     dayExp: Math.round(c.dayExp),
-    dayCap: DAILY_EXP_CAP,
     mood: mood(c),
     weight: Math.round(c.weight * 10) / 10,
     weightBase: Math.round(baseWeight(c.age) * 10) / 10,

@@ -43,10 +43,20 @@ r = care.actFeed(c);
 ok('거의 부를 땐 경험치가 적다', !r.ok || r.gain < 8, r);
 ok('밥 먹으면 배고픔이 오른다', c.hunger > 50, c.hunger);
 
-console.log('# 하루 상한');
+console.log('# 하루 획득에 상한이 없다');
 c = hatched();
 for (let i = 0; i < 60; i++) { c.hunger = 0; care.actFeed(c); }
-ok('하루 획득이 200을 넘지 않는다', c.dayExp <= 200, c.dayExp);
+ok('자주 돌보면 계속 오른다', c.dayExp > 200, c.dayExp);
+{
+  // ...but only because you kept emptying it. Left alone, a second round
+  // straight after a first is worth almost nothing — the clock is the limit.
+  const d = hatched();
+  d.hunger = 0; d.fun = 0; d.energy = 100; d.poops = [{ id: 'a', x: 1 }];
+  const round = (x) => [care.actFeed, care.actPlay, care.actClean, care.actSnack]
+    .reduce((n, f) => n + ((f(x, 'a') || {}).gain || 0), 0);
+  const first = round(d), second = round(d);
+  ok('연달아 하면 거의 안 오른다', second < first / 2, first + ' → ' + second);
+}
 
 console.log('# 나이');
 c = hatched();

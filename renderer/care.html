@@ -152,6 +152,10 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
   border:1px solid var(--line);background:var(--bg);color:var(--text);
   font:inherit;font-size:12.5px;padding:7px 12px;border-radius:999px}
 #family .mates button:hover{border-color:var(--accent);color:var(--accent)}
+/* after :hover, or a blocked partner would still light up under the cursor */
+#family .mates button[disabled],
+#family .mates button[disabled]:hover{opacity:.5;cursor:default;border-style:dashed;
+                                      border-color:var(--line);color:var(--muted)}
 #family .none{font-size:12px;color:var(--muted)}
 #traits{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
 #traits .tag{border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:11.5px}
@@ -410,8 +414,10 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     } else if (!c.mates || !c.mates.length) {
       out += '<div class="none">함께할 어른이 아직 없어요</div>';
     } else {
+      // everyone is listed; the ones that cannot say why
       out += '<div class="mates">' + c.mates.map(function(m){
-        return '<button data-mate="' + m.id + '">' + m.name + '와 짝짓기</button>';
+        return '<button data-mate="' + m.id + '"' + (m.no ? ' disabled' : '') + '>' +
+               m.name + (m.no ? '\u2005·\u2005' + m.no : '와 짝짓기') + '</button>';
       }).join('') + '</div>';
     }
     host.innerHTML = out;
@@ -744,7 +750,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     document.getElementById('expBar').style.width = pct + '%';
     document.getElementById('expText').textContent =
       '다음 나이까지 ' + c.exp + ' / ' + c.expNeed +
-      '   ·   오늘 얻은 경험치 ' + c.dayExp + ' / ' + c.dayCap;
+      '   ·   오늘 얻은 경험치 ' + c.dayExp;
 
     KEYS.forEach(function(k){ setStat(k, c[k]); });
     drawTraits(c);

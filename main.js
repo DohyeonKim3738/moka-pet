@@ -1874,13 +1874,44 @@ function mixHex(a, b) {
   }).join('');
 }
 
+/* Everyone this one descends from, a few generations up. Walking `parents`
+   is the only record of who came from whom. */
+function ancestorsOf(id, depth, out) {
+  out = out || new Set();
+  if (depth === undefined) depth = 6;
+  const p = (cfg.pets[id] && cfg.pets[id].parents) || [];
+  if (depth <= 0) return out;
+  p.forEach((k) => {
+    if (cfg.pets[k] && !out.has(k)) { out.add(k); ancestorsOf(k, depth - 1, out); }
+  });
+  return out;
+}
+
+/* Close family, and why. Age already keeps children out of this entirely
+   (MATE_AGE is 8), but nothing stopped a grown child pairing with the
+   parent that raised it, or two of the same litter with each other —
+   which is what the family tree then drew, plainly, for anyone to see.
+   Cousins are left alone: with twenty places in the house, blocking every
+   shared ancestor would end the family after two generations. */
+function kinship(aId, bId) {
+  if (aId === bId) return '자기 자신';
+  if (ancestorsOf(aId).has(bId)) return '부모예요';
+  if (ancestorsOf(bId).has(aId)) return '자식이에요';
+  const pa = ((cfg.pets[aId] || {}).parents || []).filter((k) => cfg.pets[k]);
+  const pb = ((cfg.pets[bId] || {}).parents || []).filter((k) => cfg.pets[k]);
+  if (pa.some((k) => pb.indexOf(k) >= 0)) return '형제예요';
+  return null;
+}
+
 function mateableIds(exceptId) {
-  return hatchedKeys().filter((k) => k !== exceptId && care.canMate(cfg.pets[k].care));
+  return hatchedKeys().filter((k) => k !== exceptId &&
+    care.canMate(cfg.pets[k].care) && !kinship(exceptId, k));
 }
 
 function breed(aId, bId) {
   const a = cfg.pets[aId], b = cfg.pets[bId];
   if (!a || !b || aId === bId) return false;
+  if (kinship(aId, bId)) return false;          // close family
   if (!care.canMate(a.care) || !care.canMate(b.care)) return false;
   if (petIds().length >= MAX_PETS) return false;
 
@@ -2044,7 +2075,12 @@ function carePayload() {
       parents: pet.parents || null
     };
   });
-  v.mates = mateableIds(cfg.species).map((k) => ({ id: k, name: cfg.pets[k].name }));
+  // Listed with the reason rather than quietly missing, the same way a
+  // prize you have not earned is still shown.
+  v.mates = hatchedKeys().filter((k) => k !== cfg.species).map((k) => ({
+    id: k, name: cfg.pets[k].name,
+    no: kinship(cfg.species, k) || care.whyNotMate(cfg.pets[k].care)
+  }));
   const myParents = currentPet().parents;
   v.parents = myParents && myParents.every((k) => cfg.pets[k])
     ? myParents.map((k) => cfg.pets[k].name)
