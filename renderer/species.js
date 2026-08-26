@@ -69,6 +69,10 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
     var rows = P.shaped(prof, { top: 2, bottom: 2, right: 2 });
     if (opts.curly) rows = P.fleece(rows, { period: opts.curlPeriod || 7, offset: opts.curlOffset || 0 });
 
+    // The silhouette before any face goes on it IS the back of the head.
+    // Keeping it here costs nothing and saves drawing a second sprite.
+    var plain = rows.map(function (r) { return r; });
+
     function centred(art) { return (w - Math.max.apply(null, art.map(function (r) { return r.length; }))) / 2; }
 
     if (opts.muzzle) {
@@ -92,7 +96,7 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
       rows = P.stamp(rows, tg, centred(tg), opts.tongueY || 19);
     }
     if (opts.stamps) opts.stamps.forEach(function (s) { rows = P.stamp(rows, s[0], s[1], s[2]); });
-    return { x: 24 - w / 2, y: 4, rows: rows };
+    return { x: 24 - w / 2, y: 4, rows: rows, plain: plain };
   }
 
   /* `trim` shortens the torso from the bottom, which is what makes a
@@ -160,9 +164,11 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
     prof = fatten(stretch(prof, Math.max(0, grow)), fat || 0);
     var rows = P.shaped(curly ? P.fluffy(prof) : prof, { top: 2, bottom: 2, right: 2 });
     if (curly) rows = P.fleece(rows, { period: 7, offset: 2 });
+    var plain = rows.map(function (r) { return r; });   // the back has no belly
     rows = P.stamp(rows, patch(BELLY, 'B', 'b'), 3 + Math.round((fat || 0) / 2), 9);
     // blob() centres the profile, so a wider body has to start further left
-    return { x: 13 - Math.round((fat || 0) / 2), y: 22, rows: rows, curly: !!curly, fat: fat || 0 };
+    return { x: 13 - Math.round((fat || 0) / 2), y: 22, rows: rows,
+             plain: plain, curly: !!curly, fat: fat || 0 };
   }
   function bodyPart(curly) { return bodyFor(curly, 0, 0, 0); }
 
@@ -642,14 +648,81 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
     flat:  { at: [32, 7], art: ['.OOOO.', 'OFFDDO', '.OOOO.'] }
   };
 
+  /* 엎드려 is not sleep. A dog told to lie down props its chest on the
+     floor, stretches its forelegs out in front, and keeps its head UP
+     watching you. Reusing the curled sleeping shape read as a loaf, so
+     this is its own silhouette: head raised at the left, a gap of air
+     between the head and the back, and two forelegs reaching forward
+     along the ground. Floor is row 14, same as the sleeping one, so the
+     two swap in place without the pet appearing to jump. */
+  var ALERT_SPANS = [
+    [[4, 10]],                            // 0  crown of the raised head
+    [[2, 12]],                            // 1
+    [[1, 13]],                            // 2
+    [[0, 13]],                            // 3
+    [[0, 13]],                            // 4  the head is well clear of the back
+    [[0, 13]],                            // 5
+    [[0, 13], [21, 28]],                  // 6  jaw | crest of the back, low
+    [[0, 12], [17, 32]],                  // 7  shoulder
+    // from here down it is ONE mass: an outline between the neck and the
+    // chest reads as a seam, and the head looks stuck on
+    [[1, 34]],                            // 8
+    [[3, 34]],                            // 9
+    [[4, 34]],                            // 10
+    [[5, 34]],                            // 11
+    [[6, 34]],                            // 12
+    [[7, 33]],                            // 13
+    [[8, 33]],                            // 14 floor
+    [[24, 31]],                           // 15 hind paw
+    []                                    // 16
+  ];
+
+  /* The forelegs are stamped rather than carved out of the body: they need
+     their own outline, or they merge into the chest and the whole thing
+     goes back to being a loaf. */
+  var FORELEG = ['..OOOOOOOOOO',
+                 '.OFFFFFFFFFO',
+                 'OFFFFFFFFFFO',
+                 'OFFFFFFFFFFO',
+                 '.OOOOOOOOOO.'];
+
+  /* Ears and tails sit higher on this one, because the head and the back
+     both moved up. Same five shapes, new anchors. */
+  var EARS_ALERT = { flop: [9, 1], flopS: [9, 1], point: [9, -2], nub: [9, 0], fold: [9, -1] };
+  var TAILS_ALERT = { pom: [32, 7], nub: [33, 10], plume: [31, 6], long: [32, 5], flat: [32, 10] };
+
+  function lyingAlert(opts) {
+    var g = shadeRows(fromSpans(36, 17, ALERT_SPANS), 1, 2);
+
+    // muzzle carried forward at head height, nose at the tip
+    g = P.stamp(g, patch(opts.muzzle || [6, 8, 8, 6], opts.muzzleCh || 'B', opts.muzzleCh ? null : 'b'), 0, 4);
+    g = P.stamp(g, ['KKK', 'KKK'], 0, 5);
+    g = P.stamp(g, ['KHK', 'KKK'], 5, 3);          // open eye, watching you
+    g = P.stamp(g, patch([3, 3], 'p'), 5, 6);      // cheek
+
+    g = P.stamp(g, FORELEG, 0, 10);                // stretched out in front
+
+    var ear = EARS_LYING[opts.ear || 'flop'];
+    var eAt = EARS_ALERT[opts.ear || 'flop'];
+    g = P.stamp(g, ear.art, eAt[0], eAt[1]);
+    var tail = TAILS_LYING[opts.tail || 'pom'];
+    var tAt = TAILS_ALERT[opts.tail || 'pom'];
+    g = P.stamp(g, tail.art, tAt[0], tAt[1]);
+
+    return { x: 6, y: 26, rows: g };
+  }
+
   function lying(opts) {
     var g = shadeRows(fromSpans(36, 17, LYING_SPANS), 1, 2);
 
     // muzzle laid along the ground, nose at the very tip
     g = P.stamp(g, patch(opts.muzzle || [6, 8, 8, 6], opts.muzzleCh || 'B', opts.muzzleCh ? null : 'b'), 0, 9);
     g = P.stamp(g, ['KKK', 'KKK'], 0, 10);
-    // shut eye and a little colour in the cheek
-    g = P.stamp(g, ['.OOO.', 'O...O'], 5, 8);
+    // The eye is the whole difference between "asleep" and "lying down
+    // because you asked". Same drawing otherwise — a dog told to lie down
+    // holds the same shape, it just keeps watching you.
+    if (opts.awake) g = P.stamp(g, ['KHK', 'KKK'], 5, 8);
+    else            g = P.stamp(g, ['.OOO.', 'O...O'], 5, 8);
     g = P.stamp(g, patch([3, 3], 'p'), 5, 11);
 
     var ear = EARS_LYING[opts.ear || 'flop'];
@@ -691,16 +764,27 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
     return { x: 6, y: 30, rows: g };
   }
 
+  /* Each takes `awake`: 자기 gets the shut eye, 엎드려 the open one. */
+  function lyingFor(opts) {
+    return function (awake) {
+      var o = {};
+      Object.keys(opts).forEach(function (k) { o[k] = opts[k]; });
+      o.awake = !!awake;
+      return awake ? lyingAlert(o) : lying(o);
+    };
+  }
+
   BY_KEY_SLEEP = {
-    capybara: function () { return lying({ ear: 'nub',   tail: 'nub',   muzzle: [8, 10, 10, 8] }); },
-    cat:      function () { return lying({ ear: 'point', tail: 'long',  muzzle: [4, 6, 6, 4] }); },
-    otter:    function () { return lying({ ear: 'nub',   tail: 'flat',  muzzle: [8, 10, 10, 8] }); },
-    shiba:    function () { return lying({ ear: 'point', tail: 'plume', muzzle: [6, 8, 8, 6] }); },
-    dodam:    function () { return lying({ ear: 'flop',  tail: 'pom',   muzzle: [6, 8, 8, 6] }); },
-    cream:    function () { return lying({ ear: 'flop',  tail: 'pom',   muzzle: [6, 8, 8, 6] }); },
-    kong:     function () { return lying({ ear: 'flopS', tail: 'pom',   muzzle: [6, 8, 8, 6] }); },
+    capybara: lyingFor({ ear: 'nub',   tail: 'nub',   muzzle: [8, 10, 10, 8] }),
+    cat:      lyingFor({ ear: 'point', tail: 'long',  muzzle: [4, 6, 6, 4] }),
+    otter:    lyingFor({ ear: 'nub',   tail: 'flat',  muzzle: [8, 10, 10, 8] }),
+    shiba:    lyingFor({ ear: 'point', tail: 'plume', muzzle: [6, 8, 8, 6] }),
+    dodam:    lyingFor({ ear: 'flop',  tail: 'pom',   muzzle: [6, 8, 8, 6] }),
+    cream:    lyingFor({ ear: 'flop',  tail: 'pom',   muzzle: [6, 8, 8, 6] }),
+    kong:     lyingFor({ ear: 'flopS', tail: 'pom',   muzzle: [6, 8, 8, 6] }),
     // 단추 wears a dark mask, so its muzzle is drawn in the outline colour
-    danchu:   function () { return lying({ ear: 'fold',  tail: 'long',  muzzle: [6, 8, 8, 6], muzzleCh: 'K' }); },
+    danchu:   lyingFor({ ear: 'fold',  tail: 'long',  muzzle: [6, 8, 8, 6], muzzleCh: 'K' }),
+    // the crab has no drawn eye to open — its stalks fold either way
     crab:     crabLying
   };
 
@@ -713,11 +797,16 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
       return cache;
     };
     if (BY_KEY_SLEEP[sp.key]) {
-      sp.sleep = BY_KEY_SLEEP[sp.key]();
-      var sleepCache = null;
+      sp.sleep = BY_KEY_SLEEP[sp.key](false);
+      sp.lie   = BY_KEY_SLEEP[sp.key](true);
+      var sleepCache = null, lieCache = null;
       sp.sleepMarkup = function () {
-        if (sleepCache === null) sleepCache = P.buildSleep(sp);
+        if (sleepCache === null) sleepCache = P.buildSleep(sp.sleep);
         return sleepCache;
+      };
+      sp.lieMarkup = function () {
+        if (lieCache === null) lieCache = P.buildSleep(sp.lie);
+        return lieCache;
       };
     }
     sp.origins = P.origins(sp);
@@ -747,7 +836,9 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
       v.origins = P.origins(v);
       // the lying-down sprite is drawn once, at adult size, for everyone
       v.sleepMarkup = sp.sleepMarkup;
+      v.lieMarkup = sp.lieMarkup;
       v.sleep = sp.sleep;
+      v.lie = sp.lie;
     }
     VARIANTS[id] = v;
     return v;

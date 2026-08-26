@@ -1,0 +1,78 @@
+<!doctype html><html><head><meta charset="utf-8"><title>집 꾸미기</title>
+<link rel="stylesheet" href="sprite.css">
+<style>
+body{margin:0;background:#EDE9E3;font:13px -apple-system,BlinkMacSystemFont,sans-serif;color:#2b2b2b;padding:20px 22px 34px}
+h1{font-size:19px;margin:0 0 3px}
+p.sub{margin:0 0 20px;color:#777;font-size:12.5px}
+h2{font-size:13.5px;margin:26px 0 10px;color:#555;font-weight:600}
+.row{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.cat{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.cell{background:#fff;border-radius:12px;padding:8px 8px 6px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.cell svg{display:block;width:100%;height:auto}
+.n{font-size:12px;margin-top:4px;color:#444}
+.n .lk{color:#B8860B}
+.win{font-size:11px;color:#999;margin-top:1px}
+</style></head><body>
+<h1>집 꾸미기</h1>
+<p class="sub">착용하는 소품과 별개로, 펫이 지내는 자리를 네 칸으로 꾸밉니다 — 뒤쪽 배경 · 바닥 · 왼쪽 · 오른쪽.</p>
+
+<h2>집 모드를 켜면 창이 넓어집니다</h2>
+<div class="row" id="ab"></div>
+
+<h2>꾸며 본 예</h2>
+<div class="row" id="ex"></div>
+
+<h2>있는 것들 — 🔒 는 미션 상품</h2>
+<div class="cat" id="cat"></div>
+
+<script>
+/* Cache-bust every library. A plain <script src> is served from the browser's
+   own cache even when the server says no-store, and a stale species.js is
+   indistinguishable from "my change did nothing" — it cost two rounds of
+   chasing a bug that was already fixed on disk. */
+['pixel.js','gear.js','tint.js','room.js','species.js'].forEach(function(f){
+  document.write('<script src="' + f + '?' + Date.now() + Math.random() + '"><\/script>');
+});
+</script>
+<script>
+var R=window.ROOM, DOT=window.PIXEL.DOT;
+var HOME=(R.left*DOT)+' -40 '+(R.W*DOT)+' 300';
+var PLAIN='-20 -40 280 300';
+var LOCK={house:'산책 스무 번',frame:'아이 낳기',rug:'어른까지 키우기',
+          shelf:'세 마리 함께 키우기',grass:'산책 백 번',wall9:'아홉 마리 모두 만나기',
+          carpet:'전설까지 키우기',trophy:'재주 열 개 모두',jar:'밥 백 번',
+          disc:'재주 다섯 개',bucket:'치우기 쉰 번',speaker:'재주 백 번 보여주기'};
+
+function cell(host,key,choice,label,note,home){
+  var sp=window.SPECIES.get(key);
+  var d=document.createElement('div'); d.className='cell';
+  // the narrow stage must be drawn at the same dot size, or the comparison
+  // looks like the pet shrinks when it goes home — it does not
+  var w=(home===false)?'width:58.3%;margin:0 auto;':'';
+  d.innerHTML='<svg viewBox="'+(home===false?PLAIN:HOME)+'" style="'+w+window.TINT.css({fur:sp.fur,belly:sp.belly},sp)+'">'
+    +(home===false?'':R.markup(choice))+sp.markup()+'</svg>'
+    +'<div class="n">'+label+'</div>'+(note?'<div class="win">'+note+'</div>':'');
+  document.getElementById(host).appendChild(d);
+}
+
+cell('ab','capybara',{},'집 모드 끔','창 336 × 360 · 책상을 돌아다닙니다',false);
+cell('ab','capybara',{back:'house',floor:'cushion',left:'bowl',right:'bone'},'집 모드 켬','창 576 × 360 · 제자리에 머뭅니다');
+
+cell('ex','dodam', {back:'frame', floor:'rug',   left:'plant',right:'ball'}, '가족 액자 · 러그 · 화분 · 공');
+cell('ex','danchu',{back:'window',floor:'tiles', left:'bowl', right:'plant'},'창문 · 타일 바닥 · 밥그릇 · 화분');
+
+/* one item at a time, so each is actually legible */
+[['back','window'],['back','house'],['back','frame'],['back','shelf'],['back','wall9'],
+ ['floor','cushion'],['floor','tiles'],['floor','rug'],['floor','grass'],['floor','carpet'],
+ ['left','bowl'],['left','water'],['left','bone'],['left','plant'],['left','plush'],
+ ['left','disc'],['left','bucket'],['left','speaker'],['left','trophy'],['left','jar'],
+ ['right','ball']
+].forEach(function(pair){
+  var slot=pair[0],k=pair[1];
+  var pool=(slot==='back')?R.items.back:(slot==='floor'?R.items.floor:R.items.left);
+  var c={}; c[slot]=k;
+  var lab=pool[k].label+(LOCK[k]?' <span class="lk">🔒</span>':'');
+  cell('cat','capybara',c,lab,LOCK[k]?('미션 「'+LOCK[k]+'」'):R.labels[slot]);
+});
+</script>
+</body></html>

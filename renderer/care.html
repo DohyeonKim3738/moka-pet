@@ -36,6 +36,8 @@ main{flex:1 1 auto;padding:4px 18px 18px;overflow:auto}
 .who{display:flex;align-items:baseline;gap:10px}
 .who .name{font-size:19px;font-weight:700}
 .who .age{font-size:13px;color:var(--muted)}
+.who .badge{font-size:11.5px;color:var(--accent);border:1px solid var(--accent);
+            border-radius:999px;padding:1px 8px;line-height:1.5}
 .exp{margin-top:10px}
 .exp .cap{font-size:11.5px;color:var(--muted);margin-top:5px}
 
@@ -75,6 +77,45 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
 .who input.nameEdit{font-size:19px;font-weight:700;color:var(--text);
   background:var(--bg);border:1px solid var(--accent);border-radius:8px;
   padding:2px 8px;width:180px;font-family:inherit}
+#missions{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+#missions .ttl{font-size:12px;color:var(--muted);margin-bottom:8px}
+/* the room, offered here rather than four levels into a tray menu */
+#room{margin-top:14px}
+#room .slot{display:flex;align-items:center;gap:8px;margin-top:6px}
+#room .slot .lb{flex:0 0 66px;color:var(--muted);font-size:11.5px}
+#room .slot select option:disabled{color:var(--muted)}
+#room .slot select{flex:1 1 auto;font:inherit;font-size:12px;padding:4px 8px;
+                   border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--text)}
+#room .on{display:flex;align-items:center;gap:7px;font-size:12px}
+#room .hint{color:var(--muted);font-size:11px;margin-top:7px;line-height:1.5}
+#room[data-off="1"] .slot{opacity:.45}
+
+#missions ul{list-style:none;margin:0;padding:0}
+#missions li{display:flex;align-items:baseline;gap:8px;font-size:12px;padding:3px 0}
+#missions li .mk{flex:0 0 14px;color:var(--muted)}
+#missions li.on .mk{color:var(--accent)}
+#missions li.on .nm{font-weight:700}
+#missions li .pz{margin-left:auto;color:var(--muted);font-size:11.5px}
+/* how far along, as a number and as a bar — five of the twelve are pure
+   counting, and a target with no running total is a homework assignment */
+#missions li .at{margin-left:auto;color:var(--muted);font-size:11.5px;
+                 font-variant-numeric:tabular-nums;white-space:nowrap}
+#missions li .at b{color:var(--text);font-weight:700}
+#missions li .bar{flex:0 0 46px;height:4px;border-radius:2px;background:var(--line);
+                  overflow:hidden;margin-left:8px}
+#missions li .bar i{display:block;height:100%;background:var(--accent)}
+#missions .badges{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+/* .badges is a wrapping flex row, so the caption has to claim a whole line */
+#missions .badges .pick{flex:0 0 100%;font-size:11px;color:var(--muted);margin:0 2px 2px}
+#missions .badges button{border:1px solid var(--accent);color:var(--accent);
+            background:none;border-radius:999px;padding:2px 9px;font-size:11.5px;
+            cursor:pointer;font-family:inherit}
+#missions .badges button.on{background:var(--accent);color:#fff}
+/* not a title — it is the way to take one off, and should not look earned */
+#missions .badges button.none{border-color:var(--line);color:var(--muted)}
+#missions .badges button.none.on{background:var(--muted);border-color:var(--muted);color:#fff}
+#missions .badges span{border:1px solid var(--accent);color:var(--accent);
+  border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700}
 #log{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
 #log .ttl{font-size:12px;color:var(--muted);margin-bottom:8px}
 #log ul{list-style:none;margin:0;padding:0}
@@ -115,7 +156,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
 #traits{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
 #traits .tag{border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:11.5px}
 #traits .tag b{font-weight:700;color:var(--text)}
-#traits .tag.note{border-style:dashed;color:var(--muted)}
+#traits .tag.why{border-style:dashed;color:var(--muted);margin:0}
 .grow .pair{display:flex;align-items:flex-end;justify-content:center;gap:18px}
 .grow figure{margin:0;width:96px;text-align:center}
 .grow .art{position:relative;height:96px;display:flex;align-items:flex-end;justify-content:center}
@@ -165,6 +206,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
         <span class="name" id="name">—</span>
         <button class="rename" id="rename" title="이름 바꾸기">✎</button>
         <span class="age" id="age"></span>
+        <span class="badge" id="badge" hidden></span>
       </div>
       <div class="exp">
         <div class="bar"><i id="expBar" style="width:0%"></i></div>
@@ -223,7 +265,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       </div>
       <div class="sub" style="margin-top:8px">
         <input type="checkbox" id="zoom">
-        <span id="zoomLabel">밥·놀기 할 때 가까이 오기</span>
+        <span id="zoomLabel">밥·놀기·재주 할 때 가까이 오기</span>
       </div>
       <div class="tricks" id="tricks"></div>
       <p class="note" id="hint"></p>
@@ -232,6 +274,8 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       <div class="roster" id="roster"></div>
       <div id="family"></div>
       <div id="tree"></div>
+      <div id="room"></div>
+      <div id="missions"></div>
       <div id="log"></div>
     </div>
   </main>
@@ -247,7 +291,8 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
                              setChat:function(){}, restart:function(){}, setNight:function(){},
                              pick:function(){}, mate:function(){}, game:function(){},
                              rename:function(){}, setAway:function(){}, trick:function(){},
-                             setZoom:function(){} };
+                             setZoom:function(){}, setBadge:function(){},
+                             setHome:function(){}, setRoom:function(){} };
   var KEYS = ['hunger','fun','energy','clean'];
 
   /* ---------- what it looks like now, and what comes next ----------
@@ -337,7 +382,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     bits.push('<span class="tag">성격 <b>' +
               (c.personality || '아직 몰라요') + '</b></span>');
     // say what the personality and build actually do, or they read as decoration
-    if (c.natureNote) bits.push('<span class="tag note">' + c.natureNote + '</span>');
+    if (c.natureNote) bits.push('<span class="tag why">' + c.natureNote + '</span>');
     var learned = (c.tricks || []).length;
     bits.push('<span class="tag">재주 <b>' + learned + ' / ' + c.trickTotal + '</b>' +
               (learned ? ' · ' + c.tricks.join(', ') : '') + '</span>');
@@ -539,6 +584,86 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     });
   }
 
+  /* Four slots, the same ones the tray menu offers, but here where you can
+     see the pet you are decorating around. Locked items are simply absent —
+     main.js filters them before they ever reach this window. */
+  function drawRoom(c){
+    var host = document.getElementById('room');
+    if (c.egg || !c.room) { host.innerHTML = ''; return; }
+    var slots = (c.room.slots || []).map(function(s){
+      // prizes are listed even when locked, greyed out with the milestone
+      // that hands them over — hiding them hid that there was anything to
+      // work towards
+      var opts = [['없음','none']].concat(s.items).map(function(o){
+        return '<option value="' + o[1] + '"' +
+               (o[2] ? ' disabled' : '') +
+               (c.room.choice[s.slot] === o[1] ? ' selected' : '') + '>' +
+               o[0] + (o[2] ? ' — 「' + o[2] + '」' : '') + '</option>';
+      }).join('');
+      return '<div class="slot"><span class="lb">' + s.label + '</span>' +
+             '<select data-room="' + s.slot + '">' + opts + '</select></div>';
+    }).join('');
+    host.setAttribute('data-off', c.home ? '0' : '1');
+    host.innerHTML =
+      '<div class="ttl">집 꾸미기</div>' +
+      '<label class="on"><input type="checkbox" id="homeOn"' + (c.home ? ' checked' : '') + '>' +
+      '<span>집에서 지내기 — 창이 넓어지고 제자리에 머뭅니다</span></label>' +
+      slots +
+      '<div class="hint">' + (c.home
+        ? '고른 것은 이 아이의 집에만 남습니다.'
+        : '집에서 지내기를 켜야 화면에 나옵니다.') + '</div>';
+
+    document.getElementById('homeOn').addEventListener('change', function(){
+      api.setHome(this.checked);
+    });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-room]'), function(sel){
+      sel.addEventListener('change', function(){
+        api.setRoom(sel.getAttribute('data-room'), sel.value);
+      });
+    });
+  }
+
+  /* Quiet: a list you can look at, never a nag. Undone ones show what
+     they would give, so the prize is the reason rather than a score. */
+  function drawMissions(c){
+    var host = document.getElementById('missions');
+    var list = c.missions || [];
+    if (c.egg || !list.length) { host.innerHTML = ''; return; }
+    var got = list.filter(function(m){ return m.done; }).length;
+    var rows = list.map(function(m){
+      var tail;
+      if (m.done) {
+        tail = '<span class="pz">' + m.prize + '</span>';
+      } else if (typeof m.goal === 'number') {
+        var pct = Math.round(Math.min(1, (m.now || 0) / m.goal) * 100);
+        tail = '<span class="at"><b>' + (m.now || 0) + '</b> / ' + m.goal + (m.unit || '') + '</span>' +
+               '<span class="bar"><i style="width:' + pct + '%"></i></span>';
+      } else {
+        tail = '<span class="pz">' + m.how + '</span>';
+      }
+      return '<li class="' + (m.done ? 'on' : '') + '" title="' + m.how + '">' +
+               '<span class="mk">' + (m.done ? '\u2714' : '\u25cb') + '</span>' +
+               '<span class="nm">' + m.title + '</span>' + tail +
+             '</li>';
+    }).join('');
+    // Titles are worn one at a time. Picking happens here, where they are,
+    // rather than somewhere else that has to explain what a title is.
+    var badges = (c.badges || []).length
+      ? '<div class="badges"><div class="pick">딴 칭호 — 하나를 고르면 말풍선과 이름 옆에 붙습니다</div>' +
+        c.badges.map(function(b){
+          return '<button type="button" data-badge="' + b.id + '"' +
+                 (b.id === c.badgeId ? ' class="on"' : '') + '>' + b.name + '</button>';
+        }).join('') +
+        '<button type="button" class="none' + (c.badgeId ? '' : ' on') + '" data-badge="">안 달기</button>' +
+        '</div>'
+      : '';
+    host.innerHTML = '<div class="ttl">이정표 ' + got + ' / ' + list.length + '</div>' +
+                     '<ul>' + rows + '</ul>' + badges;
+    Array.prototype.forEach.call(host.querySelectorAll('[data-badge]'), function(b){
+      b.addEventListener('click', function(){ api.setBadge(b.getAttribute('data-badge')); });
+    });
+  }
+
   function setNightUI(c){
     document.getElementById('night').checked = c.night !== false;
     if (c.nightFrom !== undefined) {
@@ -555,8 +680,8 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     // is better than leaving a checkbox that has no effect
     document.getElementById('zoomLabel').textContent =
       (c.zoomFactor && c.zoomFactor > 1.01)
-        ? '밥·놀기 할 때 가까이 오기 (' + c.zoomFactor.toFixed(1) + '배)'
-        : '밥·놀기 할 때 가까이 오기 (지금 크기면 그대로)';
+        ? '밥·놀기·재주 할 때 가까이 오기 (' + c.zoomFactor.toFixed(1) + '배)'
+        : '밥·놀기·재주 할 때 가까이 오기 (지금 크기면 그대로)';
   }
 
   function setStat(key, v){
@@ -579,6 +704,8 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     drawGame(c);
     drawTree(c.roster);
     drawFamily(c);
+    drawRoom(c);
+    drawMissions(c);
     drawLog(c);
     var met = document.getElementById('met');
     var restart = document.getElementById('restart');
@@ -601,6 +728,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       document.getElementById('tricks').innerHTML = '';
       document.getElementById('gameCard').style.display = 'none';
       document.getElementById('log').innerHTML = '';
+      document.getElementById('missions').innerHTML = '';
       document.getElementById('chat').checked = c.chat !== false;
       setNightUI(c);
       document.getElementById('hint').textContent = '알은 배고프지도 지루하지도 않아요. 기다리거나 쓰다듬어 주세요.';
@@ -608,6 +736,9 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     }
 
     document.getElementById('age').textContent = c.age + '살 · ' + c.title;
+    var bg = document.getElementById('badge');
+    bg.textContent = c.badge || '';
+    bg.hidden = !c.badge;
 
     var pct = c.expNeed ? Math.min(100, Math.round(c.exp / c.expNeed * 100)) : 0;
     document.getElementById('expBar').style.width = pct + '%';

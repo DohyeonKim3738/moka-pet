@@ -18,3 +18,8 @@
 .eye-lid,
 .eye-shut,
 .glint-2 { display: none; }
+
+/* The pet's back, drawn on top of its front and invisible until it turns
+   around. Only the spinning tricks bring it up. */
+#backHead,
+#backBody { opacity: 0; }

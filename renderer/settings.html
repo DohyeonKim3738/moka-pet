@@ -193,6 +193,9 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
 (function(){
   "use strict";
   // outside Electron (design preview) there is no bridge; degrade quietly
+  // 집에서 지내기 lives in the care window, next to the four slots it
+  // controls — a lone switch here could turn the room on with no way to
+  // put anything in it.
   var bridge = window.settings || { onConfig: function(){}, setPct: function(){}, ready: function(){} };
   var slider = document.getElementById('scale');
   var out    = document.getElementById('scaleOut');

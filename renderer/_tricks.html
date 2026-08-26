@@ -1,0 +1,97 @@
+<!doctype html><html><head><meta charset="utf-8"><title>재주</title>
+<link rel="stylesheet" href="sprite.css">
+<style>
+body{margin:0;background:#EDE9E3;font:13px -apple-system,BlinkMacSystemFont,sans-serif;color:#2b2b2b;padding:18px}
+h1{font-size:18px;margin:0 0 14px}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.cell{background:#fff;border-radius:10px;padding:6px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.cell .n{font-size:12px;margin-top:2px}
+.cell .t{font-size:10.5px;color:#999}
+.cell svg{display:block;width:100%;height:auto}
+.ground{fill:rgba(0,0,0,.10)}
+</style></head><body>
+<h1 id="h">재주</h1>
+<div class="grid" id="g"></div>
+
+<script>
+/* Cache-bust every library. A plain <script src> is served from the browser's
+   own cache even when the server says no-store, and a stale species.js is
+   indistinguishable from "my change did nothing" — it cost two rounds of
+   chasing a bug that was already fixed on disk. */
+['pixel.js','gear.js','tint.js','room.js','species.js'].forEach(function(f){
+  document.write('<script src="' + f + '?' + Date.now() + Math.random() + '"><\/script>');
+});
+</script>
+<script>
+/* The trick CSS lives in index.html, so pull it in verbatim rather than
+   keeping a second copy that can drift out of step with the real thing. */
+var only=new URLSearchParams(location.search).get('only');
+var TRICKS=[['앉아','sit'],['손','paw'],['엎드려','lie'],['빙글','spin'],['점프','jump'],
+            ['인사','bow'],['기다려','stay'],['하이파이브','high'],['구르기','roll'],['노래','sing'],
+            ['훈련 중','training'],['자기','sleeping'],['가만히','idle']];
+/* ?only=spin / ?only=roll 로 한 동작을 프레임별로 펼쳐 본다 */
+if(only){
+  var n=12, frames=[];
+  for(var i=0;i<n;i++) frames.push([Math.round(i/n*100)+'%', only, i/n]);
+  TRICKS = frames.map(function(f){ return [f[0], f[1]]; });
+  window.__AT = frames.map(function(f){ return f[2]; });
+}
+/* where in each animation to freeze, as a fraction of one run */
+var AT={sit:.5,paw:.5,lie:.5,spin:.28,jump:.4,bow:.5,stay:.5,high:.5,roll:.25,sing:.25,
+        training:.6,idle:.2};
+
+fetch('index.html?' + Math.random(), {cache:'no-store'}).then(function(r){return r.text();}).then(function(src){
+  var css=src.slice(src.indexOf('<style>')+7, src.indexOf('</style>'));
+  var st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
+  build();
+});
+
+/* the same overlays index.html puts up for these two states */
+var NOTE=['..K.','..K.','KKK.','KK..'];
+function fx(state){
+  var P=window.PIXEL;
+  if(state==='training') return '<g class="fx-note">'+P.encode(NOTE,34,6)+'</g>';
+  if(state==='sing') return '<g class="fx-note">'+P.encode(NOTE,34,6)+'</g>'+
+    '<g class="fx-note n2">'+P.encode(NOTE,8,9)+'</g>'+
+    '<g class="fx-note n3">'+P.encode(NOTE,38,2)+'</g>';
+  return '';
+}
+
+function build(){
+  var sp=window.SPECIES.get('capybara');
+  var grid=document.getElementById('g');
+  TRICKS.forEach(function(pair){
+    var label=pair[0], state=pair[1];
+    var d=document.createElement('div'); d.className='cell';
+    // 엎드려·자기 는 서 있는 리그를 구부린 게 아니라 전용 눕는 그림이다
+    var lying = (state==='lie'||state==='sleeping') && sp.sleepMarkup;
+    d.innerHTML=
+      '<div id="wrap" data-state="'+state+'"'+(lying?' data-sleepart="1"':'')+' data-eyes="basic" data-species="capybara" style="--gx:0;--gy:0;--hx:0px;--hy:0px">'+
+      '<svg viewBox="20 40 200 200" style="'+window.TINT.css({fur:sp.fur,belly:sp.belly},sp)+'">'+
+      '<rect class="ground" x="60" y="216" width="120" height="4"/>'+
+      '<g id="petRoot"><g id="petAnim">'+
+        (lying ? (state==='lie'&&sp.lieMarkup ? sp.lieMarkup() : sp.sleepMarkup()) : sp.markup())+'</g></g>'+
+      '<g id="actionFx" shape-rendering="crispEdges">'+fx(state)+'</g></svg></div>'+
+      '<div class="n">'+label+'</div><div class="t">'+state+'</div>';
+    grid.appendChild(d);
+    var o=sp.origins||{};
+    var svg=d.querySelector('svg');
+    Object.keys(o).forEach(function(k){ svg.style.setProperty('--o-'+k, o[k]); });
+  });
+  // freeze every animation at its held moment so a still frame shows the pose
+  requestAnimationFrame(function(){
+    document.querySelectorAll('.cell').forEach(function(c,i){
+      var state=TRICKS[i][1], at=(window.__AT?window.__AT[i]:(AT[state]||.5));
+      c.querySelectorAll('*').forEach(function(e){
+        var cs=getComputedStyle(e);
+        if(cs.animationName==='none') return;
+        var dur=parseFloat(cs.animationDuration)||1;
+        e.style.animationPlayState='paused';
+        e.style.animationDelay=(-dur*at)+'s';
+      });
+    });
+    document.getElementById('h').textContent='재주 — 각 동작이 멈춘 순간';
+  });
+}
+</script>
+</body></html>

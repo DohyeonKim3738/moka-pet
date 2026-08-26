@@ -121,6 +121,10 @@ function blank() {
     traitDay: dayKey(now),
     bornAt: 0,                 // set when it hatches, not when the egg appears
     log: [],
+    walks: 0, children: 0,
+    // lifetime tallies. traits decay every day, so milestones cannot be
+    // built on them — these only ever go up.
+    meals: 0, snacks: 0, plays: 0, pats: 0, cleans: 0, naps: 0, shows: 0,
     egg: true, eggAt: now, eggTaps: 0, lastWarm: 0,
     poops: [], sleeping: false,
     lastTick: now, lastPoop: now,
@@ -155,6 +159,11 @@ function normalize(c) {
   out.bornWith = Array.isArray(out.bornWith) ? out.bornWith.filter((x) => TRICKS.indexOf(x) >= 0) : [];
   if (typeof out.traitDay !== 'string') out.traitDay = dayKey(Date.now());
   out.bornAt = Number.isFinite(out.bornAt) ? out.bornAt : 0;
+  out.walks = Number.isFinite(out.walks) && out.walks >= 0 ? out.walks : 0;
+  out.children = Number.isFinite(out.children) && out.children >= 0 ? out.children : 0;
+  ['meals', 'snacks', 'plays', 'pats', 'cleans', 'naps', 'shows'].forEach((k) => {
+    out[k] = Number.isFinite(out[k]) && out[k] >= 0 ? out[k] : 0;
+  });
   out.log = Array.isArray(out.log)
     ? out.log.filter((e) => e && typeof e.text === 'string').slice(0, LOG_MAX)
     : [];
@@ -390,6 +399,7 @@ function actFeed(c) {
   c.hunger = clamp(c.hunger + 45);
   c.sleeping = false;
   addWeight(c, WEIGHT.meal);
+  c.meals = (c.meals || 0) + 1;
   return Object.assign({ ok: true, verb: '밥' }, award(c, Math.round(need / 100 * 18) + 4));
 }
 
@@ -405,6 +415,7 @@ function actSnack(c) {
   c.sleeping = false;
   addWeight(c, WEIGHT.snack);
   bump(c, 'food', 1);
+  c.snacks = (c.snacks || 0) + 1;
   return Object.assign({ ok: true, verb: '간식' }, award(c, 3));
 }
 
@@ -418,6 +429,7 @@ function actPlay(c) {
   c.sleeping = false;
   addWeight(c, WEIGHT.play);
   bump(c, 'play', 1);
+  c.plays = (c.plays || 0) + 1;
   return Object.assign({ ok: true, verb: '놀기' }, award(c, Math.round(need / 100 * 18) + 4));
 }
 
@@ -431,6 +443,7 @@ function actPerform(c, trick) {
   c.energy = clamp(c.energy - 5);
   c.sleeping = false;
   bump(c, 'love', 0.2);
+  c.shows = (c.shows || 0) + 1;
   return { ok: true, verb: '재주', trick, gain: 0, aged: false };
 }
 
@@ -472,6 +485,7 @@ function actWalk(c) {
   c.hunger = clamp(c.hunger - 6);          // walking works up an appetite
   c.sleeping = false;
   addWeight(c, WEIGHT.play * 1.6 * mw.walkBurn);
+  c.walks = (c.walks || 0) + 1;
   bump(c, 'play', 0.8);
   bump(c, 'love', 0.4);                    // time spent together counts
   const found = Math.random() < 0.28;
@@ -513,6 +527,7 @@ function actTrain(c) {
 function actPat(c) {
   if (c.egg) return { ok: false, reason: '아직 알이에요' };
   bump(c, 'love', 1);
+  c.pats = (c.pats || 0) + 1;
   // an affectionate pet actually gets something out of being stroked
   const f = mods(c).patFun;
   if (f) c.fun = clamp(c.fun + f);
@@ -529,6 +544,7 @@ function actSleep(c) {
   if (c.energy >= 95) return { ok: false, reason: '아직 쌩쌩해요' };
   c.sleeping = true;
   bump(c, 'rest', 1);
+  c.naps = (c.naps || 0) + 1;
   const need = 100 - c.energy;
   return Object.assign({ ok: true, verb: '잠' }, award(c, Math.round(need / 100 * 14) + 3));
 }
@@ -538,6 +554,7 @@ function actClean(c, id) {
   const before = c.poops.length;
   c.poops = id ? c.poops.filter((p) => p.id !== id) : c.poops.slice(1);
   if (c.poops.length === before) return { ok: false, reason: '치울 게 없어요' };
+  c.cleans = (c.cleans || 0) + 1;
   return Object.assign({ ok: true, verb: '청소' }, award(c, 10));
 }
 
@@ -790,6 +807,10 @@ function view(c) {
     natureNote: natureNote(c),
     wander: mods(c).wander || 1,
     tricks: (c.tricks || []).slice(),
+    walks: c.walks || 0,
+    children: c.children || 0,
+    meals: c.meals || 0, snacks: c.snacks || 0, plays: c.plays || 0,
+    pats: c.pats || 0, cleans: c.cleans || 0, naps: c.naps || 0, shows: c.shows || 0,
     nextTrick: nextTrick(c),
     bornWith: (c.bornWith || []).slice(),
     canGame: canPlayGame(c).ok,

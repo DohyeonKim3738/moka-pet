@@ -1,15 +1,22 @@
 <!doctype html><html><head><meta charset="utf-8"><title>gear</title>
+<link rel="stylesheet" href="sprite.css">
 <style>
 body{margin:0;background:#EDE9E3;font:12px -apple-system,sans-serif;color:#333}
-.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:10px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:10px}
 .cell{background:#fff;border-radius:8px;padding:4px;text-align:center}
 .cell svg{display:block;width:100%;height:auto}
 .n{font-size:11px;margin-top:2px;color:#555}
-.eye-lid,.eye-shut,.glint-2{display:none}
-#tear{opacity:0}
 </style></head><body>
 <div class="grid" id="g"></div>
-<script src="pixel.js"></script><script src="gear.js"></script><script src="species.js"></script>
+<script>
+/* Cache-bust every library. A plain <script src> is served from the browser's
+   own cache even when the server says no-store, and a stale species.js is
+   indistinguishable from "my change did nothing" — it cost two rounds of
+   chasing a bug that was already fixed on disk. */
+['pixel.js','gear.js','tint.js','room.js','species.js'].forEach(function(f){
+  document.write('<script src="' + f + '?' + Date.now() + Math.random() + '"><\/script>');
+});
+</script>
 <script>
 function parse(h){var m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[0,0,0];}
 function toHex(c){return '#'+c.map(function(v){v=Math.max(0,Math.min(255,Math.round(v)));return ('0'+v.toString(16)).slice(-2);}).join('');}
@@ -34,10 +41,23 @@ function show(key, props, label){
     }
   });
 }
-['horn','rimless','half','sun'].forEach(function(k){ show('capybara',{eyes:k}, window.GEAR.items.eyes[k].label); });
-['coffee','balloon','flowers','notebook'].forEach(function(k){ show('capybara',{hand:k}, window.GEAR.items.hand[k].label); });
-['scarf','hoodie','bowtie','overalls'].forEach(function(k){ show('capybara',{body:k}, window.GEAR.items.body[k].label); });
-show('capybara',{head:'yuzu',eyes:'horn',hand:'coffee',body:'scarf'},'풀장착');
+// ?only=lock 를 주면 미션 소품만 크게 본다
+var only = new URLSearchParams(location.search).get('only');
+if (only === 'lock') {
+  window.GEAR.slots.forEach(function(slot){
+    var items = window.GEAR.items[slot];
+    Object.keys(items).filter(function(k){ return items[k].lock; }).forEach(function(k){
+      var props = {}; props[slot] = k;
+      show('capybara', props, items[k].label + ' — ' + slot);
+    });
+  });
+  show('capybara',{head:'crown',hand:'bone',body:'cape'},'셋 다');
+} else {
+  ['horn','rimless','half','sun'].forEach(function(k){ show('capybara',{eyes:k}, window.GEAR.items.eyes[k].label); });
+  ['coffee','balloon','flowers','notebook'].forEach(function(k){ show('capybara',{hand:k}, window.GEAR.items.hand[k].label); });
+  ['scarf','hoodie','bowtie','overalls'].forEach(function(k){ show('capybara',{body:k}, window.GEAR.items.body[k].label); });
+  show('capybara',{head:'yuzu',eyes:'horn',hand:'coffee',body:'scarf'},'풀장착');
+}
 show('dodam',{eyes:'sun',hand:'balloon',body:'hoodie'},'도담이 조합');
 show('crab',{eyes:'sun',hand:'coffee',body:'bowtie'},'게(좌표 확인)');
 show('danchu',{eyes:'half',hand:'notebook',body:'overalls'},'단추 조합');

@@ -1,5 +1,6 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>sprite preview</title>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="sprite.css"><title>sprite preview</title>
 <style>
 body{margin:0;background:#EDE9E3;font:13px -apple-system,sans-serif;color:#333}
 .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:10px}
@@ -12,8 +13,15 @@ cell svg{overflow:visible}
 </style></head>
 <body>
 <div class="grid" id="g"></div>
-<script src="pixel.js"></script>
-<script src="species.js"></script>
+<script>
+/* Cache-bust every library. A plain <script src> is served from the browser's
+   own cache even when the server says no-store, and a stale species.js is
+   indistinguishable from "my change did nothing" — it cost two rounds of
+   chasing a bug that was already fixed on disk. */
+['pixel.js','gear.js','tint.js','room.js','species.js'].forEach(function(f){
+  document.write('<script src="' + f + '?' + Date.now() + Math.random() + '"><\/script>');
+});
+</script>
 <script>
 function parse(h){var m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[0,0,0];}
 function toHex(c){return '#'+c.map(function(v){v=Math.max(0,Math.min(255,Math.round(v)));return ('0'+v.toString(16)).slice(-2);}).join('');}

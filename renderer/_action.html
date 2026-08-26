@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<link rel="stylesheet" href="sprite.css">
 <title>펫</title>
 <style>
 html,body{
@@ -278,9 +279,15 @@ html,body{
   window.__fireCare  = function(c){ careCbs.forEach(function(fn){ fn(c); }); };
 })();
 </script>
-<script src="pixel.js"></script>
-<script src="gear.js"></script>
-<script src="species.js"></script>
+<script>
+/* Cache-bust every library. A plain <script src> is served from the browser's
+   own cache even when the server says no-store, and a stale species.js is
+   indistinguishable from "my change did nothing" — it cost two rounds of
+   chasing a bug that was already fixed on disk. */
+['pixel.js','gear.js','tint.js','room.js','species.js'].forEach(function(f){
+  document.write('<script src="' + f + '?' + Date.now() + Math.random() + '"><\/script>');
+});
+</script>
 <script>
 (function(){
   "use strict";

@@ -19,6 +19,11 @@ const IS_WIN = process.platform === 'win32';
    so the size control steps through dot sizes rather than percentages. */
 const STAGE_W = 56;
 const STAGE_H = 60;
+/* A room needs somewhere to put the things beside the pet, so turning it
+   on widens the stage to 96 dots — the pet keeps the middle 48 and gets
+   24 spare on each side. renderer/room.js draws in that wider space. */
+const STAGE_W_HOME = 96;
+function stageW() { return cfg && cfg.home && cfg.home.enabled ? STAGE_W_HOME : STAGE_W; }
 const DOT_BASE = 6;      // dot size at 100% -> 336 x 360
 const PCT_MIN = 10;
 const PCT_MAX = 200;
@@ -82,6 +87,7 @@ function blankPet(key) {
   return {
     name: s.name, species: key, fur: s.fur, belly: s.belly, eyes: 'basic',
     props: { head: s.prop || 'none', eyes: 'none', hand: 'none', body: 'none' },
+    room: { back: 'none', floor: 'none', left: 'none', right: 'none' },
     care: care.blank()
   };
 }
@@ -106,6 +112,8 @@ function defaults() {
     away: { enabled: true, minutes: 20 },
     zoom: { enabled: true },
     update: { enabled: true, repo: 'DohyeonKim3738/moka-pet', skip: '' },
+    missions: { done: [], badge: '' },
+    home: { enabled: false },
     species: 'capybara',
     pets,
     pct: PCT_BASE,
@@ -189,6 +197,9 @@ function loadConfig() {
     ['head', 'eyes', 'hand', 'body'].forEach(k => {
       if (typeof pet.props[k] !== 'string') pet.props[k] = 'none';
     });
+    // the hand-held 가족 액자 became a room item; a save still wearing it
+    // would point at an accessory that no longer exists
+    if (pet.props.hand === 'photo') pet.props.hand = 'none';
     delete pet.prop;
     pet.care = care.normalize(pet.care);
   });
@@ -206,6 +217,11 @@ function loadConfig() {
   }
   petIds().forEach((id) => {
     if (!SP[cfg.pets[id].species]) cfg.pets[id].species = SP[id] ? id : SPECIES[0].key;
+    const pet = cfg.pets[id];
+    if (!pet.room || typeof pet.room !== 'object') pet.room = {};
+    ['back', 'floor', 'left', 'right'].forEach(k => {
+      if (typeof pet.room[k] !== 'string') pet.room[k] = 'none';
+    });
   });
   if (cfg.pets[raw.species]) cfg.species = raw.species;
   if (raw.eggKey && cfg.pets[raw.eggKey]) cfg.eggKey = raw.eggKey;
@@ -236,7 +252,13 @@ function loadConfig() {
   if (raw.night && typeof raw.night === 'object') Object.assign(cfg.night, raw.night);
   if (raw.away && typeof raw.away === 'object') Object.assign(cfg.away, raw.away);
   if (raw.zoom && typeof raw.zoom === 'object') Object.assign(cfg.zoom, raw.zoom);
+  if (raw.home && typeof raw.home === 'object') Object.assign(cfg.home, raw.home);
   if (raw.update && typeof raw.update === 'object') Object.assign(cfg.update, raw.update);
+  if (raw.missions && Array.isArray(raw.missions.done)) cfg.missions.done = raw.missions.done.slice();
+  if (raw.missions && typeof raw.missions.badge === 'string'
+      && cfg.missions.done.indexOf(raw.missions.badge) >= 0) {
+    cfg.missions.badge = raw.missions.badge;
+  }
   if (raw.seen && typeof raw.seen === 'object') cfg.seen = calendar.prune(raw.seen);
   if (Number.isFinite(raw.pct)) cfg.pct = clampPct(raw.pct);
   else if (Number.isFinite(raw.dot)) cfg.pct = clampPct(raw.dot / DOT_BASE * 100);
@@ -279,7 +301,8 @@ function payload() {
   return {
     species: currentPet().species || cfg.species,
     pet: currentPet(),
-    label: currentSpecies().label
+    label: currentSpecies().label,
+    home: !!(cfg.home && cfg.home.enabled)
   };
 }
 
@@ -366,7 +389,7 @@ function sizeFor(pct, stage) {
   // the artwork being scaled and blurred.
   const k = clampPct(pct) / 100 * care.stageScale(stage || 'adult') * zoom;
   return {
-    width: Math.round(STAGE_W * DOT_BASE * k),
+    width: Math.round(stageW() * DOT_BASE * k),
     height: Math.round(STAGE_H * DOT_BASE * k)
   };
 }
@@ -635,7 +658,7 @@ function wander(done) {
 
 function scheduleAutoBehaviour() {
   if (autoTimer) clearTimeout(autoTimer);
-  if (!cfg.autoBehave) { stopWander(); return; }
+  if (!cfg.autoBehave || (cfg.home && cfg.home.enabled)) { stopWander(); return; }
 
   autoTimer = setTimeout(() => {
     if (!win || win.isDestroyed() || !cfg.autoBehave || dragOrigin || bubbleActive() ||
@@ -726,6 +749,50 @@ const GEAR_SLOTS = [
   ['hand', '손',   [['커피잔', 'coffee'], ['풍선', 'balloon'], ['꽃다발', 'flowers'], ['노트북', 'notebook']]],
   ['body', '옷',   [['목도리', 'scarf'], ['후드티', 'hoodie'], ['나비넥타이', 'bowtie'], ['멜빵반바지', 'overalls']]]
 ];
+/* The menu offers what this save has actually unlocked. Locked prizes are
+   not listed at all — a greyed-out row you cannot explain is worse than
+   an absence. */
+const GEAR_LOCKS = {
+  head: { cap: 'adult', crown: 'all9', beret: 'walk100', ribbon: 'three' },
+  hand: { bone: 'trick5', suitcase: 'walk20', broom: 'tidy', mic: 'showoff' },
+  body: { cape: 'legend', apron: 'chef', medal: 'alltricks' }
+};
+const GEAR_PRIZES = {
+  head: [['졸업 모자', 'cap'], ['황금 왕관', 'crown'],
+         ['탐험 모자', 'beret'], ['리본', 'ribbon']],
+  hand: [['뼈다귀', 'bone'], ['여행 가방', 'suitcase'],
+         ['빗자루', 'broom'], ['마이크', 'mic']],
+  body: [['별 망토', 'cape'], ['앞치마', 'apron'], ['금메달', 'medal']]
+};
+
+/* the milestone that hands something over, by its own name */
+function lockTitle(id) {
+  const m = MISSIONS.find((x) => x.id === id);
+  return m ? m.title : '';
+}
+
+/* Every item is listed, prizes included: hiding them meant you could not
+   tell there was anything to work towards. A prize you have not earned is
+   shown with the milestone that gives it and cannot be picked, which is
+   only readable now that the list shows how far along you are.
+   Rows are [label, key, lockedByTitle] — a third entry means locked. */
+function gearSlots() {
+  return GEAR_SLOTS.map(([slot, label, items]) => {
+    const prizes = (GEAR_PRIZES[slot] || []).map(([lb, key]) => {
+      const lock = (GEAR_LOCKS[slot] || {})[key];
+      return gearUnlocked(lock) ? [lb, key] : [lb, key, lockTitle(lock)];
+    });
+    return [slot, label, items.concat(prizes)];
+  });
+}
+
+/* wearable right now? */
+function gearPickable(slot, key) {
+  if (key === 'none') return true;
+  const row = gearSlots().find(([s]) => s === slot);
+  return !!row && row[2].some(([, k, locked]) => k === key && !locked);
+}
+
 const EYES = [['기본', 'basic'], ['졸림', 'sleepy'], ['반짝', 'sparkle']];
 const STATES = [
   ['가만히', 'idle'], ['손 흔들기', 'waving'], ['점프', 'jumping'],
@@ -739,7 +806,56 @@ function setPetField(key, value) {
   pushConfig();
 }
 
+/* Room slots — must stay in step with renderer/room.js.
+   Three of the nine are milestone prizes; the rest are there from the
+   start, so a new save can still make the place look like somewhere. */
+const ROOM_LOCKS = { house: 'walk20', frame: 'family', rug: 'adult',
+                     grass: 'walk100', shelf: 'three', wall9: 'all9',
+                     carpet: 'legend', trophy: 'alltricks', jar: 'chef',
+                     disc: 'trick5', bucket: 'tidy', speaker: 'showoff' };
+const ROOM_SLOTS = [
+  ['back',  '뒤쪽 배경', [['창문', 'window'], ['강아지집', 'house'], ['가족 액자', 'frame'],
+                          ['선반', 'shelf'], ['사진 벽', 'wall9']]],
+  ['floor', '바닥',      [['방석', 'cushion'], ['타일 바닥', 'tiles'], ['러그', 'rug'],
+                          ['잔디 바닥', 'grass'], ['레드카펫', 'carpet']]],
+  ['left',  '왼쪽 소품', [['밥그릇', 'bowl'], ['물그릇', 'water'], ['뼈다귀', 'bone'], ['공', 'ball'],
+                          ['화분', 'plant'], ['인형', 'plush'],
+                          ['원반', 'disc'], ['양동이', 'bucket'], ['스피커', 'speaker'],
+                          ['트로피', 'trophy'], ['간식 통', 'jar']]],
+  ['right', '오른쪽 소품', [['밥그릇', 'bowl'], ['물그릇', 'water'], ['뼈다귀', 'bone'], ['공', 'ball'],
+                          ['화분', 'plant'], ['인형', 'plush'],
+                          ['원반', 'disc'], ['양동이', 'bucket'], ['스피커', 'speaker'],
+                          ['트로피', 'trophy'], ['간식 통', 'jar']]]
+];
+
+function roomSlots() {
+  return ROOM_SLOTS.map(([slot, label, items]) => [
+    slot, label, items.map(([lb, key]) => {
+      const lock = ROOM_LOCKS[key];
+      return gearUnlocked(lock) ? [lb, key] : [lb, key, lockTitle(lock)];
+    })
+  ]);
+}
+
+function setRoomSlot(slot, value) {
+  // Only something this save has actually unlocked. A value that is not on
+  // the list would be stored and then silently vanish on the next redraw,
+  // because nothing can render it.
+  const row = roomSlots().find(([s]) => s === slot);
+  if (!row) return;
+  if (value !== 'none' && !row[2].some(([, key, locked]) => key === value && !locked)) {
+    pushCare();       // refused: snap the window back to what is actually set
+    return;
+  }
+  const pet = currentPet();
+  if (!pet.room) pet.room = {};
+  pet.room[slot] = value;
+  pushConfig();
+  pushCare();          // the care window draws the same choice
+}
+
 function setPetSlot(slot, value) {
+  if (!gearPickable(slot, value)) { pushConfig(); return; }   // a prize not yet earned
   const pet = currentPet();
   if (!pet.props) pet.props = {};
   pet.props[slot] = value;
@@ -886,14 +1002,57 @@ function buildMenu() {
     },
     {
       label: '소품',
-      submenu: GEAR_SLOTS.map(([slot, slotLabel, items]) => ({
+      submenu: gearSlots().map(([slot, slotLabel, items]) => ({
         label: slotLabel,
-        submenu: [['없음', 'none']].concat(items).map(([label, v]) => ({
-          label, type: 'radio',
+        submenu: [['없음', 'none']].concat(items).map(([label, v, locked]) => ({
+          label: locked ? label + ' — 「' + locked + '」' : label,
+          type: 'radio', enabled: !locked,
           checked: ((pet.props && pet.props[slot]) || 'none') === v,
           click: () => setPetSlot(slot, v)
         }))
       }))
+    },
+    {
+      label: '집',
+      submenu: [
+        {
+          label: '집에서 지내기', type: 'checkbox',
+          checked: !!(cfg.home && cfg.home.enabled),
+          click: () => setHome(!(cfg.home && cfg.home.enabled))
+        },
+        { type: 'separator' }
+      ].concat(roomSlots().map(([slot, slotLabel, items]) => ({
+        label: slotLabel,
+        submenu: [['없음', 'none']].concat(items).map(([label, v, locked]) => ({
+          label: locked ? label + ' — 「' + locked + '」' : label,
+          type: 'radio', enabled: !locked,
+          checked: ((pet.room && pet.room[slot]) || 'none') === v,
+          click: () => setRoomSlot(slot, v)
+        }))
+      }))).concat([
+        { type: 'separator' },
+        {
+          label: '집 비우기',
+          click: () => {
+            currentPet().room = { back: 'none', floor: 'none', left: 'none', right: 'none' };
+            pushConfig();
+          }
+        }
+      ])
+    },
+    {
+      label: '대표 칭호',
+      submenu: (function () {
+        const won = MISSIONS.filter((m) => missionDone(m.id));
+        if (!won.length) return [{ label: '아직 딴 칭호가 없어요', enabled: false }];
+        return [{
+          label: '달지 않기', type: 'radio', checked: !cfg.missions.badge,
+          click: () => setBadge('')
+        }, { type: 'separator' }].concat(won.map((m) => ({
+          label: m.badge, type: 'radio', checked: cfg.missions.badge === m.id,
+          click: () => setBadge(m.id)
+        })));
+      })()
     },
     {
       label: '소품 모두 벗기기',
@@ -1061,6 +1220,15 @@ ipcMain.on('settings-ready', (e) => {
   if (w && !w.isDestroyed()) w.webContents.send('settings-config', settingsPayload());
 });
 
+function setHome(on) {
+  cfg.home = { enabled: !!on };
+  saveConfig();
+  applySize();
+  pushConfig();
+  pushCare();                // the care window draws the switch and the slots
+  scheduleAutoBehaviour();   // at home it stays put
+}
+
 ipcMain.on('set-pct', (_e, pct) => {
   const p = clampPct(pct);
   if (p === cfg.pct) return;
@@ -1069,6 +1237,140 @@ ipcMain.on('set-pct', (_e, pct) => {
   saveConfig();
 });
 
+
+/* ------------------------------------------------------------------ *
+ * milestones
+ *
+ * Not quests. Nothing here asks you to do anything you would not do
+ * anyway, nothing counts down, and missing one costs nothing. They are
+ * noticed on the way past, and each hands over an accessory that cannot
+ * be got any other way — the fifteen ordinary ones stay free.
+ * ------------------------------------------------------------------ */
+/* Every milestone is a count against a target. Saying so in one place
+   means the list can show how far along you are — five of these are pure
+   tallies, and "모두 합쳐 100번" with no running total is a homework
+   assignment with no due date. `done` is derived, never written twice. */
+const MISSIONS = [
+  { id: 'adult',  title: '어른까지 키우기',      how: '한 마리를 8살까지',
+    prize: '졸업 모자 · 러그', badge: '보호자', unit: '살',
+    goal: 8, now: () => best((c) => c.age) },
+
+  { id: 'trick5', title: '재주 다섯 개 가르치기', how: '한 마리에게 5가지',
+    prize: '뼈다귀 · 원반', badge: '훈련사', unit: '가지',
+    goal: 5, now: () => best((c) => (c.tricks || []).length) },
+
+  { id: 'walk20', title: '산책 스무 번',          how: '모두 합쳐 20번',
+    prize: '여행 가방 · 강아지집', badge: '산책왕', unit: '번',
+    goal: 20, now: () => tally('walks') },
+
+  { id: 'family', title: '아이 낳기',            how: '어른 둘로 한 번',
+    prize: '가족 액자', badge: '가족', unit: '명',
+    goal: 1, now: () => tally('children') },
+
+  { id: 'all9',   title: '아홉 마리 모두 만나기', how: '알을 아홉 번 깨우기',
+    prize: '황금 왕관 · 사진 벽', badge: '아홉의 친구', unit: '마리',
+    goal: SPECIES.length,
+    now: () => SPECIES.filter((sp) => cfg.pets[sp.key] && !cfg.pets[sp.key].care.egg).length },
+
+  { id: 'legend', title: '전설까지 키우기',       how: '한 마리를 30살까지',
+    prize: '별 망토 · 레드카펫', badge: '전설의 주인', unit: '살',
+    goal: 30, now: () => best((c) => c.age) },
+
+  /* The second six are about the doing rather than the growing: they add
+     up across every pet in the save, so they keep counting whichever one
+     you are looking after today. */
+  { id: 'alltricks', title: '재주 열 개 모두 가르치기', how: '한 마리에게 10가지',
+    prize: '금메달 · 트로피', badge: '사범', unit: '가지',
+    goal: care.TRICKS.length, now: () => best((c) => (c.tricks || []).length) },
+
+  { id: 'chef',   title: '밥 백 번 차려주기',      how: '모두 합쳐 100번',
+    prize: '앞치마 · 간식 통', badge: '집밥', unit: '번',
+    goal: 100, now: () => tally('meals') },
+
+  { id: 'tidy',   title: '치우기 쉰 번',           how: '모두 합쳐 50번',
+    prize: '빗자루 · 양동이', badge: '깔끔이', unit: '번',
+    goal: 50, now: () => tally('cleans') },
+
+  { id: 'showoff', title: '재주 백 번 보여주기',   how: '모두 합쳐 100번',
+    prize: '마이크 · 스피커', badge: '무대체질', unit: '번',
+    goal: 100, now: () => tally('shows') },
+
+  { id: 'walk100', title: '산책 백 번',            how: '모두 합쳐 100번',
+    prize: '탐험 모자 · 잔디 바닥', badge: '탐험가', unit: '번',
+    goal: 100, now: () => tally('walks') },
+
+  { id: 'three',  title: '세 마리 함께 키우기',    how: '알 셋을 깨우기',
+    prize: '리본 · 선반', badge: '대가족', unit: '마리',
+    goal: 3, now: () => hatchedKeys().length }
+];
+
+/* how far along a milestone is, never above its target */
+function missionNow(m) {
+  let n = 0;
+  try { n = m.now() || 0; } catch (e) { n = 0; }
+  return Math.max(0, Math.min(m.goal, n));
+}
+
+function missionMet(m) { return missionNow(m) >= m.goal; }
+
+/* the best any one pet has managed — growth milestones are about a single
+   animal, not the household */
+function best(pick) {
+  return hatchedKeys().reduce((n, k) => Math.max(n, pick(cfg.pets[k].care) || 0), 0);
+}
+
+/* Milestones count the household, not the pet in front of you. */
+function tally(field) {
+  return petIds().reduce((n, k) => n + (cfg.pets[k].care[field] || 0), 0);
+}
+
+function missionDone(id) { return (cfg.missions.done || []).indexOf(id) >= 0; }
+
+/* The title on show. Earned titles all stay earned; this is only which
+   one is worn, and none is a perfectly good answer. */
+function badgeLabel() {
+  const m = MISSIONS.find((x) => x.id === cfg.missions.badge && missionDone(x.id));
+  return m ? m.badge : '';
+}
+
+function setBadge(id) {
+  cfg.missions.badge = (id && missionDone(id)) ? id : '';
+  saveConfig();
+  pushCare();
+  pushConfig();
+}
+
+/* Awards every milestone that has been met, but announces only one — six
+   at once must not stack six bubbles. Awarding only one used to leave the
+   list showing "20 / 20" next to an empty circle until the next action,
+   which reads as a bug. */
+function checkMissions() {
+  if (careState().egg) return;
+  const won = MISSIONS.filter((m) => !missionDone(m.id) && missionMet(m));
+  if (!won.length) return;
+
+  won.forEach((m) => {
+    cfg.missions.done.push(m.id);
+    care.note(careState(), 'mission',
+      '「' + m.title + '」 달성 — ' + m.prize + care.eul(m.prize) + ' 받았어요');
+  });
+  if (!badgeLabel()) cfg.missions.badge = won[0].id;   // the first one goes on by itself
+  saveConfig();
+
+  const m = won[0];
+  const more = won.length > 1 ? ' 외 ' + (won.length - 1) + '개' : '';
+  showBubble({
+    kind: 'age',
+    head: m.title + more,
+    lines: [m.prize + care.eul(m.prize) + ' 받았어요 · 칭호 「' + m.badge + '」']
+  });
+  pushConfig();
+  pushCare();
+}
+
+/* Which accessories are available: the free ones, plus whatever the
+   milestones have handed over. */
+function gearUnlocked(lock) { return !lock || missionDone(lock); }
 
 /* ------------------------------------------------------------------ *
  * updates
@@ -1496,14 +1798,27 @@ function careTick(push) {
   if (c.sleeping !== wasSleeping) saveConfig();
   if (wasEgg && !c.egg) { cfg.eggKey = null; announceHatch(); }
   eggTick();
+  checkMissions();
   if (push !== false) pushCare();
   if (c.poops.length !== before || (wasEgg && !c.egg)) saveConfig();
 }
 
 /* What to call the thing on screen. While it is an egg the name would
    give away the species, which is the one thing an egg is for. */
+/* The plain name. The care window shows it in a field you can rename, so
+   it must stay the name and nothing else. */
 function speakerName() {
   return careState().egg ? '알' : currentPet().name;
+}
+
+/* The bubble head: who is talking, and — since it is right there above
+   the pet — how old it is and what title it is wearing. Announcement
+   bubbles carry their own subject, so only chatter comes through here. */
+function speakerLine() {
+  const c = careState();
+  if (c.egg) return '알';
+  const badge = badgeLabel();
+  return currentPet().name + ' · ' + c.age + '살' + (badge ? ' · ' + badge : '');
 }
 
 /* The warming cooldown is invisible, so an egg that is ready to be
@@ -1591,6 +1906,8 @@ function breed(aId, bId) {
   care.markMated(a.care);
   care.markMated(b.care);
   const born = '의 사이에 「' + pet.name + '」' + care.ga(pet.name) + ' 생겼어요';
+  a.care.children = (a.care.children || 0) + 1;
+  b.care.children = (b.care.children || 0) + 1;
   care.note(a.care, 'child', b.name + '와' + born);
   care.note(b.care, 'child', a.name + '와' + born);
   cfg.eggKey = id;
@@ -1634,6 +1951,13 @@ function doTrick(trick) {
 }
 
 ipcMain.on('care-trick', (_e, trick) => { doTrick(trick); });
+
+ipcMain.on('badge-set', (_e, id) => { setBadge(typeof id === 'string' ? id : ''); });
+
+ipcMain.on('care-home', (_e, on) => setHome(on));
+ipcMain.on('care-room', (_e, slot, value) => {
+  if (ROOM_SLOTS.some(([s]) => s === slot)) setRoomSlot(slot, typeof value === 'string' ? value : 'none');
+});
 
 ipcMain.on('care-game', (_e, won) => {
   const r = care.actGame(careState(), !!won);
@@ -1726,6 +2050,21 @@ function carePayload() {
     ? myParents.map((k) => cfg.pets[k].name)
     : null;
   v.full = petIds().length >= MAX_PETS;
+  // the room, so the care window can offer it without digging through a
+  // four-deep tray menu
+  v.home = !!(cfg.home && cfg.home.enabled);
+  v.room = {
+    choice: Object.assign({ back: 'none', floor: 'none', left: 'none', right: 'none' },
+                          currentPet().room || {}),
+    slots: roomSlots().map(([slot, label, items]) => ({ slot, label, items }))
+  };
+  v.missions = MISSIONS.map((m) => ({
+    id: m.id, title: m.title, how: m.how, prize: m.prize, badge: m.badge,
+    done: missionDone(m.id), now: missionNow(m), goal: m.goal, unit: m.unit
+  }));
+  v.badges = MISSIONS.filter((m) => missionDone(m.id)).map((m) => ({ id: m.id, name: m.badge }));
+  v.badge = badgeLabel();
+  v.badgeId = cfg.missions.badge || '';
   v.met = hatchedKeys().length;
   v.total = SPECIES.length;
   v.left = wildUnhatched().filter((k) => k !== cfg.eggKey).length;
@@ -1763,7 +2102,7 @@ function pushCare() {
   if (ringWin && !ringWin.isDestroyed()) ringWin.webContents.send('ring-state', v);
   if (tray) tray.setToolTip(careState().egg
     ? `알 · 부화까지 ${v.hatch}%`
-    : `${currentPet().name} · ${v.age}살 ${v.title}`);
+    : `${currentPet().name} · ${v.age}살 ${v.title}` + (v.badge ? ` · ${v.badge}` : ''));
 }
 
 /* ---------- away ----------
@@ -1842,7 +2181,7 @@ function say(line, kind, force) {
   // sleep is itself a thing worth saying goodnight to.
   if (!force && (bubbleActive() || careState().sleeping)) return;
   lastSpoke = Date.now();
-  showBubble({ kind: kind || 'chat', head: speakerName(), lines: [line], quiet: true });
+  showBubble({ kind: kind || 'chat', head: speakerLine(), lines: [line], quiet: true });
 }
 
 /* A reaction to something the user just did. Always welcome, so it skips
@@ -1911,6 +2250,8 @@ function doAct(what) {
   else if (what === 'train') reactTo(r.learned ? 'trickWin' : 'trickMiss');
   else if (what === 'walk') reactTo(r.found ? 'walkFind' : 'walk');
   else reactTo(what);
+
+  checkMissions();
 
   if (r.learned) {
     // let it finish concentrating first: an announcement forces the

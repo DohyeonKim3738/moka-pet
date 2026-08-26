@@ -459,5 +459,195 @@ console.log('# 업데이트 버전 비교');
   ok('이상한 값도 터지지 않는다', up.isNewer(null, undefined) === false);
 }
 
+console.log('# 평생 횟수');
+{
+  const c = care.blank();
+  c.egg = false; c.age = 5; c.bornAt = Date.now();
+  c.hunger = 10; c.fun = 10; c.energy = 100;
+  care.actFeed(c);  ok('밥 한 번', c.meals === 1);
+  care.actSnack(c); ok('간식 한 번', c.snacks === 1);
+  care.actPlay(c);  ok('놀기 한 번', c.plays === 1);
+  care.actPat(c);   ok('쓰다듬기 한 번', c.pats === 1);
+  c.energy = 40; care.actSleep(c); ok('잠 한 번', c.naps === 1);
+  c.sleeping = false;
+  c.poops = [{ id: 'a', x: 1 }];
+  care.actClean(c, 'a'); ok('치우기 한 번', c.cleans === 1);
+  c.tricks = ['앉아']; c.energy = 90;
+  care.actPerform(c, '앉아'); ok('재주 한 번', c.shows === 1);
+
+  // and they must survive a reload, since milestones are counted off them
+  const back = care.normalize(JSON.parse(JSON.stringify(c)));
+  ok('저장했다 읽어도 남는다', back.meals === 1 && back.pats === 1 && back.shows === 1);
+
+  // a save written before these existed must not come back as NaN
+  const older = care.normalize({ egg: false, age: 4 });
+  ok('예전 저장본은 0 으로', older.meals === 0 && older.cleans === 0 && older.shows === 0);
+
+  // failed actions must not count
+  const full = care.blank();
+  full.egg = false; full.age = 5; full.hunger = 100;
+  care.actFeed(full);
+  ok('못 먹인 밥은 세지 않는다', full.meals === 0);
+}
+
+console.log('# 몸통 소품이 체형 따라 뭉개지지 않는다');
+{
+  // widen() adds/removes columns at the ROW CENTRE to fit clothing to the
+  // body. A hard object centred on the chest lost half its width on a slim
+  // pet, which is how the medal became a gold sliver.
+  global.window = global;
+  require('../renderer/pixel.js');
+  require('../renderer/gear.js');
+  require('../renderer/tint.js');
+  require('../renderer/species.js');
+
+  function gearWidth(build, key) {
+    const m = window.SPECIES.at('capybara', 'adult', build).markup()
+      .match(new RegExp('data-gear="' + key + '"[\\s\\S]*?<\\/g>'));
+    const box = [...m[0].matchAll(/x="(\d+)"[^>]*width="(\d+)"/g)]
+      .map((g) => [+g[1], +g[1] + +g[2]]);
+    return Math.max(...box.map((b) => b[1])) - Math.min(...box.map((b) => b[0]));
+  }
+
+  const builds = ['slim', 'normal', 'plump', 'heavy'];
+  const medal = builds.map((b) => gearWidth(b, 'medal'));
+  ok('금메달은 체형이 달라도 같은 크기', medal.every((w) => w === medal[0]), medal.join('/'));
+
+  const hoodie = builds.map((b) => gearWidth(b, 'hoodie'));
+  ok('옷은 체형 따라 넓어진다', hoodie[0] < hoodie[3], hoodie.join('/'));
+
+  // ...and because it does not stretch, it has to fit the narrowest chest
+  // there is, or the ribbon hangs off the side of a slim pet.
+  function overhang(key) {
+    const bad = [];
+    ['capybara', 'dodam', 'danchu', 'crab', 'haru'].forEach((sk) => {
+      builds.forEach((b) => {
+        const sp = window.SPECIES.at(sk, 'adult', b);
+        const m = sp.markup().match(new RegExp('data-gear="' + key + '"[\\s\\S]*?<\\/g>'))[0];
+        const rows = {};
+        for (const g of m.matchAll(/x="(\d+)"[^>]*y="(\d+)"[^>]*width="(\d+)"/g)) {
+          const x = +g[1] / 5, y = +g[2] / 5, w = +g[3] / 5;
+          rows[y] = rows[y] || [Infinity, -Infinity];
+          rows[y][0] = Math.min(rows[y][0], x);
+          rows[y][1] = Math.max(rows[y][1], x + w - 1);
+        }
+        const body = sp.parts.body;
+        Object.keys(rows).forEach((y) => {
+          const row = body.rows[+y - body.y];
+          if (!row) return;
+          const lo = row.search(/[^.]/);
+          const hi = row.length - 1 - [...row].reverse().join('').search(/[^.]/);
+          if (rows[y][0] < body.x + lo || rows[y][1] > body.x + hi) bad.push(sk + '/' + b + ' y' + y);
+        });
+      });
+    });
+    return bad;
+  }
+  const off = overhang('medal');
+  ok('금메달은 어느 종·체형에서도 몸 밖으로 안 나간다', off.length === 0, off.slice(0, 3).join(', '));
+}
+
+console.log('# 미션 상품은 잠겨 있어야 한다');
+{
+  global.window = global;
+  require('../renderer/pixel.js');
+  require('../renderer/gear.js');
+  // main.js gearSlots()/ROOM_LOCKS decide what the menu offers; if an item
+  // loses its `lock` it silently becomes free for everyone. That is exactly
+  // what happened when the broom art was rewritten.
+  const WANT = {
+    cap: 'adult', beret: 'walk100', ribbon: 'three', crown: 'all9',
+    bone: 'trick5', broom: 'tidy', mic: 'showoff', suitcase: 'walk20',
+    apron: 'chef', medal: 'alltricks', cape: 'legend'
+  };
+  const find = (key) => {
+    let hit = null;
+    window.GEAR.slots.forEach((s) => { if (window.GEAR.items[s][key]) hit = window.GEAR.items[s][key]; });
+    return hit;
+  };
+  Object.keys(WANT).forEach((k) => {
+    const it = find(k);
+    ok('상품 ' + k + ' 는 ' + WANT[k] + ' 로 잠겨 있다', !!it && it.lock === WANT[k],
+       it ? String(it.lock) : '없음');
+  });
+  // Anything held must actually be in the paw. The paw is at y33..35; a
+  // broom drawn entirely above it left the pet cupping the brush head, and
+  // the bone was floating clear of the hand for the same reason.
+  Object.keys(window.GEAR.items.hand).forEach((k) => {
+    const it = window.GEAR.items.hand[k];
+    const y0 = it.at[1];
+    const rows = [33, 34, 35].filter((y) => {
+      const r = it.art[y - y0];
+      return r !== undefined && /[^.]/.test(r);
+    });
+    ok('손에 든 ' + k + ' 가 앞발에 닿는다', rows.length >= 2, rows.length + '줄');
+  });
+
+  // 가족 액자 lives in the room now, not the hand — one prize, one place
+  ok('손에 드는 가족 액자는 없다', !window.GEAR.items.hand.photo);
+
+  // and nothing else may carry a lock main.js does not know about
+  const known = new Set(Object.values(WANT));
+  const stray = [];
+  window.GEAR.slots.forEach((s) => Object.keys(window.GEAR.items[s]).forEach((k) => {
+    const it = window.GEAR.items[s][k];
+    if (it.lock && !known.has(it.lock)) stray.push(k + ':' + it.lock);
+  }));
+  ok('메뉴가 모르는 잠금은 없다', stray.length === 0, stray.join(','));
+}
+
+console.log('# 뒷모습');
+{
+  const FACE = /--belly|--nose|#2B2622|#F6C3BB/;
+  ['capybara', 'dodam', 'danchu', 'shiba', 'crab'].forEach((k) => {
+    const m = window.SPECIES.at(k, 'adult', 'normal').markup();
+    const cut = (id) => {
+      const i = m.indexOf('id="' + id + '"');
+      return i < 0 ? null : m.slice(i, m.indexOf('</g>', i));
+    };
+    const head = cut('backHead'), body = cut('backBody');
+    ok(k + ': 뒷모습 레이어가 있다', !!head && !!body);
+    // the crab's shell is hand-drawn and has no plain version, so it is
+    // allowed to fall back to its front art; everyone else must be bare
+    if (head && k !== 'crab') {
+      const faces = (head.match(/fill="([^"]+)"/g) || []).filter((f) => FACE.test(f));
+      ok(k + ': 뒷머리에 얼굴이 없다', faces.length === 0, faces.slice(0, 2).join(','));
+    }
+    if (body && k !== 'crab') {
+      const bellies = (body.match(/fill="var\(--belly[^"]*\)"/g) || []);
+      ok(k + ': 뒷몸에 배가 없다', bellies.length === 0, String(bellies.length));
+    }
+    ok(k + ': 평소에는 숨어 있다',
+       head.indexOf('style="opacity:0"') >= 0 && body.indexOf('style="opacity:0"') >= 0);
+  });
+
+  // 엎드려 is its own drawing: head up, eye open, forelegs out in front.
+  // 자기 stays curled with the eye shut.
+  ['capybara', 'dodam', 'shiba', 'danchu'].forEach((k) => {
+    const sp = window.SPECIES.get(k);
+    ok(k + ': 엎드려 그림이 따로 있다', !!sp.lieMarkup && sp.lieMarkup() !== sp.sleepMarkup());
+
+    // the glint only exists on an open eye
+    ok(k + ': 엎드려는 눈을 떴다', sp.lieMarkup().indexOf('#FFFFFF') >= 0);
+    ok(k + ': 자기는 눈을 감았다', sp.sleepMarkup().indexOf('#FFFFFF') < 0);
+
+    const top = (rows) => rows.findIndex((r) => /[^.]/.test(r));
+    ok(k + ': 엎드려가 머리를 더 들고 있다', top(sp.lie.rows) < top(sp.sleep.rows),
+       top(sp.lie.rows) + ' vs ' + top(sp.sleep.rows));
+
+    // they swap in place, so the floor must not move
+    const floor = (rows) => rows.length - 1 - [...rows].reverse().findIndex((r) => /[^.]/.test(r));
+    ok(k + ': 바닥 높이가 같다', floor(sp.lie.rows) === floor(sp.sleep.rows) &&
+       sp.lie.y === sp.sleep.y);
+  });
+  ok('게는 눈이 없어 한 가지뿐', !window.SPECIES.get('crab').lieMarkup ||
+     window.SPECIES.get('crab').lieMarkup() === window.SPECIES.get('crab').sleepMarkup());
+
+  // and only the two turning tricks are allowed to bring it up
+  const css = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'index.html'), 'utf8');
+  const shows = (css.match(/#backHead/g) || []).length;
+  ok('뒷모습을 켜는 곳은 빙글·구르기뿐', shows === 2, String(shows));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

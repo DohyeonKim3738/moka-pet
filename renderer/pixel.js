@@ -322,14 +322,33 @@
     var items = (root.GEAR && root.GEAR.items[kind]) || {};
     var id = (kind === 'head') ? 'prop' : ('slot-' + kind);
     var html = '<g id="' + id + '">';
-    var shift = Math.round((fat || 0) / 2);
     Object.keys(items).forEach(function (key) {
       var it = items[key];
+      // Clothing is cut to fit, so it grows and shrinks with the body.
+      // A hard object does not: widen() adds or removes columns at the
+      // ROW CENTRE, which on a slim pet ate four of the eight dots out of
+      // the middle of the medal and left a gold sliver. `stretch: false`
+      // says "this is a thing, not cloth" — draw it at its own size.
+      var f = (it.stretch === false) ? 0 : (fat || 0);
+      var shift = Math.round(f / 2);
       html += '<g data-gear="' + key + '" style="display:none">' +
-              encode(widen(it.art, fat || 0), it.at[0] + off[0] - shift, it.at[1] + off[1]) +
+              encode(widen(it.art, f), it.at[0] + off[0] - shift, it.at[1] + off[1]) +
               '</g>';
     });
     return html + '</g>';
+  }
+
+  /* The face-free silhouette of a part, ready to be faded in when the pet
+     turns its back. Falls back to the part's own rows for a species that
+     has no plain version (the crab's shell is drawn by hand). */
+  function backLayer(id, part) {
+    if (!part) return '';
+    var rows = part.plain || part.rows;
+    // Hidden in the markup, not only in a stylesheet: any window that draws
+    // a sprite without sprite.css would otherwise show the back permanently,
+    // pasted over the face. A CSS animation still wins over an inline style,
+    // so the spinning tricks can bring it up.
+    return '<g id="' + id + '" style="opacity:0">' + encode(rows, part.x, part.y) + '</g>';
   }
 
   function tearGroup(at) {
@@ -355,6 +374,10 @@
           part('armR', p.armR, slotGroup('hand', off('hand'))) +
           (p.body ? encode(p.body.rows, p.body.x, p.body.y) : '') +
           (p.bodyMark ? encode(p.bodyMark.rows, p.bodyMark.x, p.bodyMark.y) : '') +
+          // The same silhouette with no belly on it, drawn OVER the front and
+          // transparent until something turns the pet around. Covering the
+          // front is cheaper and steadier than swapping the sprite out.
+          backLayer('backBody', p.body) +
           slotGroup('body', off('body'), sp.gearFat || 0) +
         '</g>' +
         '<g id="headGaze"><g id="headAnim">' +
@@ -370,6 +393,8 @@
           eyeGroup('eyeR', eyes.r, eyes) +
           slotGroup('eyes', off('eyes')) +
           tearGroup(sp.tearAt || [eyes.l[0], eyes.l[1] + eyes.size[1]]) +
+          // ...and the back of the head, which covers the face and the eyes
+          backLayer('backHead', p.head) +
           slotGroup('head', off('head')) +
         '</g></g>' +
       '</g>';
@@ -397,11 +422,13 @@
      these are front-on drawings, so no 2D rotation turns the belly to the
      floor, and scale() is off the table because it softens the dots. So a
      species may ship a second, purpose-drawn sprite for sleep. */
-  function buildSleep(sp) {
-    if (!sp.sleep || !sp.sleep.rows) return null;
+  /* Takes the lying part itself, not the species: there are two of them
+     now (eye shut for sleep, eye open for 엎드려). */
+  function buildSleep(part) {
+    if (!part || !part.rows) return null;
     return '<g shape-rendering="crispEdges" stroke="none">' +
              '<g id="sleepBody">' +
-               encode(sp.sleep.rows, sp.sleep.x || 0, sp.sleep.y || 0) +
+               encode(part.rows, part.x || 0, part.y || 0) +
              '</g>' +
            '</g>';
   }

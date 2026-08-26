@@ -15,5 +15,8 @@ contextBridge.exposeInMainWorld('care', {
   rename: (name) => ipcRenderer.send('care-rename', name),
   setAway: (on) => ipcRenderer.send('away-set', !!on),
   trick: (name) => ipcRenderer.send('care-trick', name),
-  setZoom: (on) => ipcRenderer.send('zoom-set', !!on)
+  setZoom: (on) => ipcRenderer.send('zoom-set', !!on),
+  setBadge: (id) => ipcRenderer.send('badge-set', id),
+  setHome: (on) => ipcRenderer.send('care-home', !!on),
+  setRoom: (slot, value) => ipcRenderer.send('care-room', slot, value)
 });
