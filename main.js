@@ -1949,11 +1949,6 @@ function pairProblem(aId, bId) {
   return null;
 }
 
-function mateableIds(exceptId) {
-  return hatchedKeys().filter((k) => k !== exceptId &&
-    care.canMate(cfg.pets[k].care) && !pairProblem(exceptId, k));
-}
-
 function breed(aId, bId) {
   const a = cfg.pets[aId], b = cfg.pets[bId];
   if (!a || !b || aId === bId) return false;
