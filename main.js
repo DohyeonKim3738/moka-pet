@@ -771,7 +771,7 @@ function tailMenu(name) {
     },
     {
       label: '업데이트 확인…',
-      click: () => checkUpdate(true)
+      click: () => runUpdateCheck(true)
     },
     {
       label: '저장 내보내기…',
@@ -1063,6 +1063,50 @@ ipcMain.on('set-pct', (_e, pct) => {
  * ------------------------------------------------------------------ */
 let updateTimer = null;
 
+/* ---------- Windows: the real thing ----------
+   An NSIS install can replace itself without a code signing certificate,
+   so on Windows the update actually installs. macOS cannot: Squirrel.Mac
+   refuses to swap an unsigned bundle, which is why that platform is told
+   about the new version and sent to the page instead.
+
+   If anything here fails — no network, a malformed feed, a locked file —
+   it falls back to that same telling-you path. A silent auto-updater that
+   quietly does nothing is worse than no auto-updater. */
+let autoUpdater = null;
+
+function startWinAutoUpdate() {
+  if (!IS_WIN || !app.isPackaged) return false;
+  let mod;
+  try { mod = require('electron-updater'); }
+  catch (e) { return false; }
+
+  autoUpdater = mod.autoUpdater;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.logger = null;
+
+  autoUpdater.on('update-downloaded', (info) => {
+    const v = (info && info.version) || '';
+    dialog.showMessageBox({
+      type: 'info',
+      buttons: ['다음에 켤 때', '지금 설치'],
+      defaultId: 1, cancelId: 0, noLink: true,
+      message: '새 버전 v' + v + ' 준비됐어요',
+      detail: '설치하면 앱이 잠깐 닫혔다 다시 열립니다. 키우던 아이들은 그대로예요.'
+    }).then((r) => {
+      if (r.response === 1) setImmediate(() => autoUpdater.quitAndInstall(false, true));
+    });
+  });
+
+  autoUpdater.on('error', () => {
+    // fall back to the honest path rather than failing in silence
+    autoUpdater = null;
+    checkUpdate(false);
+  });
+
+  return true;
+}
+
 async function checkUpdate(byHand) {
   if (!byHand && !cfg.update.enabled) return;
   const found = await updater.check(cfg.update.repo, app.getVersion());
@@ -1092,11 +1136,32 @@ async function checkUpdate(byHand) {
   else if (!byHand) { cfg.update.skip = found.version; saveConfig(); }
 }
 
+function runUpdateCheck(byHand) {
+  if (autoUpdater) {
+    // Windows installs it; the events above take over from here
+    autoUpdater.checkForUpdates().catch(() => checkUpdate(byHand));
+    if (byHand) {
+      // checkForUpdates is quiet when already current, so say something
+      updater.check(cfg.update.repo, app.getVersion()).then((found) => {
+        if (found) return;
+        dialog.showMessageBox({
+          type: 'info', buttons: ['확인'], noLink: true,
+          message: '최신 버전이에요',
+          detail: '지금 쓰고 계신 v' + app.getVersion() + '가 가장 최신입니다.'
+        });
+      });
+    }
+    return;
+  }
+  checkUpdate(byHand);
+}
+
 function startUpdates() {
   if (updateTimer) clearInterval(updateTimer);
+  startWinAutoUpdate();
   // a little after launch, then twice a day
-  setTimeout(() => checkUpdate(false), 20 * 1000);
-  updateTimer = setInterval(() => checkUpdate(false), 12 * 60 * 60 * 1000);
+  setTimeout(() => runUpdateCheck(false), 20 * 1000);
+  updateTimer = setInterval(() => runUpdateCheck(false), 12 * 60 * 60 * 1000);
 }
 
 /* ------------------------------------------------------------------ *
