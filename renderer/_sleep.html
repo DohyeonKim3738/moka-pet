@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>펫</title>
+<style>
+html,body{
+  margin:0;padding:0;width:100%;height:100%;
+  background:#26262b;overflow:hidden;
+  pointer-events:none;
+  -webkit-user-select:none;user-select:none;
+  cursor:default;
+}
+#wrap{position:relative;width:100%;height:100%;pointer-events:none}
+#stageSvg{display:block;width:100%;height:100%;pointer-events:none;overflow:visible}
+
+/* only the pet's own dots catch the mouse — everything else falls through */
+#petRoot{pointer-events:auto;cursor:grab}
+#petRoot.dragging{cursor:grabbing}
+
+.heart{
+  position:absolute;pointer-events:none;
+  transform:translate(-50%,0);animation:floatUp .95s steps(6,end) forwards;
+}
+@keyframes floatUp{
+  0%{opacity:0;transform:translate(-50%,0)}
+  20%{opacity:1;transform:translate(-50%,-8px)}
+  100%{opacity:0;transform:translate(-50%,-46px)}
+}
+
+/* ===================== animation rig =====================
+   Everything here moves in whole dots (5 view-box units). Fractional
+   translates or scales would land sprite edges between device pixels
+   and soften the whole pet, which is the one thing pixel art cannot
+   survive — so squash-and-stretch is expressed as offsets instead. */
+#petAnim,#bodyBreathe,#headGaze,#headAnim,#armL,#armR,#pawL,#pawR,
+#earL,#earR,#eyeL,#eyeR,#prop,#tear,#tail,.pupil{transform-box:view-box}
+
+#petAnim,#bodyBreathe{transform-origin:var(--o-body,100px 180px)}
+#headGaze,#headAnim{transform-origin:var(--o-head,100px 116px)}
+#armL{transform-origin:var(--o-armL,57px 133px)}
+#armR{transform-origin:var(--o-armR,143px 133px)}
+#pawL{transform-origin:var(--o-pawL,82px 170px)}
+#pawR{transform-origin:var(--o-pawR,118px 170px)}
+#earL{transform-origin:var(--o-earL,50px 34px)}
+#earR{transform-origin:var(--o-earR,150px 34px)}
+#eyeL{transform-origin:var(--o-eyeL,64px 58px)}
+#eyeR{transform-origin:var(--o-eyeR,136px 58px)}
+#prop{transform-origin:var(--o-prop,100px 26px)}
+#tail{transform-origin:var(--o-tail,140px 168px)}
+
+/* ---- gaze ----
+   --hx/--hy and --px/--py are snapped to whole dots in script. */
+#headGaze{
+  transform:translate(var(--hx,0px),var(--hy,0px));
+  transition:transform .22s steps(2,end);
+}
+.pupil{
+  transform:translate(var(--px,0px),var(--py,0px));
+  transition:transform .16s steps(1,end);
+}
+#prop{
+  transform:translate(var(--qx,0px),0);
+  transition:transform .34s steps(2,end);
+}
+#earL{transform:rotate(calc(var(--ear-l,0deg) + var(--gx,0) * -4deg))}
+#earR{transform:rotate(calc(var(--ear-r,0deg) + var(--gx,0) * -4deg))}
+#tail{
+  transform:rotate(calc(var(--gx,0) * -7deg));
+  transition:transform .5s cubic-bezier(.3,1.35,.4,1);
+}
+
+/* ---- eyes ----
+   Blinking swaps whole sub-groups rather than scaling them. */
+.eye-lid,.eye-shut,.glint-2{display:none}
+#wrap.blink .eye-open{display:none}
+#wrap.blink .eye-shut{display:inline}
+#wrap[data-eyes="sleepy"] .eye-lid{display:inline}
+#wrap[data-eyes="sparkle"] .glint-2{display:inline}
+#wrap[data-state="running"] .eye-lid,
+#wrap[data-state="review"] .eye-lid,
+#wrap[data-state="failed"] .eye-lid{display:inline}
+#tear{opacity:0}
+
+/* ---- sleeping & mood ---- */
+#wrap[data-state="sleeping"] .eye-open{display:none}
+#wrap[data-state="sleeping"] .eye-shut{display:inline}
+
+/* Settled down where it stands: sunk low, head drooped, ears down.
+   NOTE: a true side-lying pose is not reachable from here. These sprites
+   are drawn front-on — the belly faces the viewer — so no 2D rotation
+   can turn the belly toward the floor, and rotating the rig scatters the
+   parts because head, body and limbs pivot about their own anchors.
+   A real lying pose needs its own drawn sprite; this is the honest
+   fallback until then. */
+#wrap[data-state="sleeping"] #petAnim{animation:restAll 4.8s ease-in-out infinite}
+#wrap[data-state="sleeping"] #headGaze{transform:none}
+#wrap[data-state="sleeping"] #headAnim{animation:restHead 4.8s ease-in-out infinite}
+#wrap[data-state="sleeping"] #bodyBreathe{animation:breathe 5.4s steps(4,end) infinite}
+#wrap[data-state="sleeping"] #armL{transform:rotate(28deg) translateY(4px)}
+#wrap[data-state="sleeping"] #armR{transform:rotate(-28deg) translateY(4px)}
+#wrap[data-state="sleeping"] #pawL{transform:translateY(2px)}
+#wrap[data-state="sleeping"] #pawR{transform:translateY(2px)}
+#wrap[data-state="sleeping"] #earL{transform:rotate(-38deg)}
+#wrap[data-state="sleeping"] #earR{transform:rotate(38deg)}
+#wrap[data-state="sleeping"] #tail{transform:rotate(14deg)}
+
+/* a species with its own drawn sleeping sprite: none of the rig
+   selectors above match it, it just breathes */
+#wrap[data-sleepart="1"] #sleepBody{animation:sleepBreathe 5.2s ease-in-out infinite}
+/* its head rests low on the left, so the Zs move down with it */
+#wrap[data-sleepart="1"] #zzz{transform:translate(-62px,86px)}
+
+/* The crab is built on a different skeleton — shell for a head, stalked
+   eyes, claws for arms — so the sprawl tears it apart. It just settles
+   where it stands, claws lowered and eyestalks drooping. */
+#wrap[data-species="crab"][data-state="sleeping"] #petAnim{animation:restAll 5.2s ease-in-out infinite}
+#wrap[data-species="crab"][data-state="sleeping"] #headGaze{transform:none}
+#wrap[data-species="crab"][data-state="sleeping"] #headAnim{animation:crabRest 5.2s ease-in-out infinite}
+#wrap[data-species="crab"][data-state="sleeping"] #bodyBreathe{animation:crabRestBody 5.2s ease-in-out infinite}
+#wrap[data-species="crab"][data-state="sleeping"] #armL{transform:rotate(26deg) translateY(8px)}
+#wrap[data-species="crab"][data-state="sleeping"] #armR{transform:rotate(-26deg) translateY(8px)}
+#wrap[data-species="crab"][data-state="sleeping"] #pawL{transform:translateY(3px)}
+#wrap[data-species="crab"][data-state="sleeping"] #pawR{transform:translateY(3px)}
+#wrap[data-species="crab"][data-state="sleeping"] #earL{transform:rotate(-34deg)}
+#wrap[data-species="crab"][data-state="sleeping"] #earR{transform:rotate(34deg)}
+#wrap[data-species="crab"][data-state="sleeping"] #tail{transform:none}
+/* a flagging pet droops, but only when it is not busy doing something */
+#wrap[data-mood="low"][data-state="idle"] #headAnim{animation:droopHead 4.2s steps(2,end) infinite}
+#wrap[data-mood="low"][data-state="idle"] #earL{transform:rotate(-30deg)}
+#wrap[data-mood="low"][data-state="idle"] #earR{transform:rotate(30deg)}
+
+/* ---- states ---- */
+@keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes headBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes tailIdle{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(4deg)}}
+@keyframes wave{0%,100%{transform:rotate(-58deg)}50%{transform:rotate(-104deg)}}
+@keyframes waveBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes jump{
+  0%{transform:translateY(0)}
+  14%{transform:translateY(5px)}
+  38%{transform:translateY(-30px)}
+  58%{transform:translateY(-35px)}
+  80%{transform:translateY(0)}
+  90%{transform:translateY(-5px)}
+  100%{transform:translateY(0)}
+}
+@keyframes leanR{0%,100%{transform:translateX(-5px)}50%{transform:translateX(5px)}}
+@keyframes leanL{0%,100%{transform:translateX(5px)}50%{transform:translateX(-5px)}}
+@keyframes stepA{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes stepB{0%,100%{transform:translateY(-10px)}50%{transform:translateY(0)}}
+@keyframes swingA{0%,100%{transform:rotate(-24deg)}50%{transform:rotate(22deg)}}
+@keyframes swingB{0%,100%{transform:rotate(22deg)}50%{transform:rotate(-24deg)}}
+@keyframes tailFast{0%,100%{transform:rotate(-10deg)}50%{transform:rotate(12deg)}}
+@keyframes focusNod{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+@keyframes typeA{0%,100%{transform:rotate(-10deg)}50%{transform:rotate(4deg)}}
+@keyframes typeB{0%,100%{transform:rotate(6deg)}50%{transform:rotate(-8deg)}}
+@keyframes askTilt{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes askHop{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes earPerk{0%,100%{transform:rotate(-22deg)}50%{transform:rotate(-12deg)}}
+@keyframes peer{0%,100%{transform:translateY(5px)}50%{transform:translateY(10px)}}
+@keyframes slump{0%,100%{transform:translateY(5px)}}
+@keyframes droopHead{0%,100%{transform:translateY(5px)}50%{transform:translateY(10px)}}
+@keyframes tailDroop{0%,100%{transform:rotate(14deg)}}
+@keyframes teardrop{
+  0%{opacity:0;transform:translateY(0)}
+  20%{opacity:1;transform:translateY(0)}
+  85%{opacity:1;transform:translateY(20px)}
+  100%{opacity:0;transform:translateY(25px)}
+}
+@keyframes happyHop{
+  0%{transform:translateY(0)}
+  30%{transform:translateY(-15px)}
+  65%{transform:translateY(0)}
+  80%{transform:translateY(-5px)}
+  100%{transform:translateY(0)}
+}
+
+/* ---- eating: the head dips to the bowl and the jaw does the work ---- */
+@keyframes chew{
+  0%,100%{transform:translateY(0) rotate(0)}
+  25%{transform:translateY(9px) rotate(-3deg)}
+  50%{transform:translateY(4px) rotate(0)}
+  75%{transform:translateY(9px) rotate(3deg)}
+}
+@keyframes chewBody{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@keyframes bowlBob{
+  0%,100%{transform:translateY(0) scaleY(1)}
+  50%{transform:translateY(3px) scaleY(.85)}
+}
+
+/* ---- playing: chasing a ball, not just a generic jump ---- */
+@keyframes chase{
+  0%{transform:translate(0,0)}
+  20%{transform:translate(10px,-14px)}
+  40%{transform:translate(20px,0)}
+  60%{transform:translate(28px,-10px)}
+  80%{transform:translate(20px,0)}
+  100%{transform:translate(0,0)}
+}
+@keyframes ballBounce{
+  0%{transform:translate(0,0)}
+  20%{transform:translate(15px,-30px)}
+  40%{transform:translate(30px,0)}
+  60%{transform:translate(42px,-18px)}
+  80%{transform:translate(30px,0)}
+  100%{transform:translate(0,0)}
+}
+@keyframes pounceArm{0%,100%{transform:rotate(-18deg)}50%{transform:rotate(30deg)}}
+
+/* ---- sleeping: drifting "Z"s above the head ---- */
+@keyframes zFloat{
+  0%{opacity:0;transform:translate(0,0) scale(.7)}
+  20%{opacity:1}
+  90%{opacity:.7}
+  100%{opacity:0;transform:translate(10px,-26px) scale(1.15)}
+}
+
+/* ---- sleeping: the whole rig settles down and tilts, with a slow rise
+   and fall for breath ---- */
+@keyframes sleepBreathe{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-3px)}
+}
+@keyframes restAll{
+  0%,100%{transform:translateY(12px)}
+  50%{transform:translateY(9px)}
+}
+@keyframes restHead{
+  0%,100%{transform:translateY(8px) rotate(-4deg)}
+  50%{transform:translateY(5px) rotate(-4deg)}
+}
+@keyframes crabRest{
+  0%,100%{transform:translateY(12px)}
+  50%{transform:translateY(9px)}
+}
+@keyframes crabRestBody{
+  0%,100%{transform:translateY(6px)}
+  50%{transform:translateY(4px)}
+}
+/* head stays upright, dropped to the floor on the left and tipped in */
+@keyframes lieHead{
+  0%,100%{transform:translate(-54px,108px) rotate(-16deg)}
+  50%{transform:translate(-54px,105px) rotate(-16deg)}
+}
+
+#wrap #bodyBreathe{animation:breathe 3.6s steps(4,end) infinite}
+#wrap[data-state="idle"] #headAnim{animation:headBob 3.6s steps(4,end) infinite}
+#wrap[data-state="idle"] #tail{animation:tailIdle 4.2s ease-in-out infinite}
+#wrap[data-state="waving"] #armR{animation:wave .78s ease-in-out infinite}
+#wrap[data-state="waving"] #headAnim{animation:waveBob .78s steps(2,end) infinite}
+#wrap[data-state="waving"] #tail{animation:tailIdle 1.4s ease-in-out infinite}
+#wrap[data-state="jumping"] #petAnim{animation:jump 1.15s steps(8,end) infinite}
+#wrap[data-state="jumping"] #tail{animation:tailFast .6s ease-in-out infinite}
+#wrap[data-state="running-right"] #petAnim{animation:leanR .52s steps(2,end) infinite}
+#wrap[data-state="running-right"] #pawL{animation:stepA .52s steps(2,end) infinite}
+#wrap[data-state="running-right"] #pawR{animation:stepB .52s steps(2,end) infinite}
+#wrap[data-state="running-right"] #armL{animation:swingA .52s ease-in-out infinite}
+#wrap[data-state="running-right"] #armR{animation:swingB .52s ease-in-out infinite}
+#wrap[data-state="running-right"] #tail{animation:tailFast .52s ease-in-out infinite}
+#wrap[data-state="running-left"] #petAnim{animation:leanL .52s steps(2,end) infinite}
+#wrap[data-state="running-left"] #pawL{animation:stepB .52s steps(2,end) infinite}
+#wrap[data-state="running-left"] #pawR{animation:stepA .52s steps(2,end) infinite}
+#wrap[data-state="running-left"] #armL{animation:swingB .52s ease-in-out infinite}
+#wrap[data-state="running-left"] #armR{animation:swingA .52s ease-in-out infinite}
+#wrap[data-state="running-left"] #tail{animation:tailFast .52s ease-in-out infinite}
+#wrap[data-state="running"] #headAnim{animation:focusNod .62s steps(2,end) infinite}
+#wrap[data-state="running"] #armL{animation:typeA .26s ease-in-out infinite}
+#wrap[data-state="running"] #armR{animation:typeB .26s ease-in-out infinite}
+#wrap[data-state="waiting"] #headAnim{animation:askTilt 1.5s steps(2,end) infinite}
+#wrap[data-state="waiting"] #petAnim{animation:askHop 1.5s steps(2,end) infinite}
+#wrap[data-state="waiting"] #earL{animation:earPerk 1.5s ease-in-out infinite}
+#wrap[data-state="review"] #headAnim{animation:peer 2.6s steps(2,end) infinite}
+#wrap[data-state="failed"] #petAnim{animation:slump 3.4s linear infinite}
+#wrap[data-state="failed"] #headAnim{animation:droopHead 3.4s steps(2,end) infinite}
+#wrap[data-state="failed"] #earL{transform:rotate(-44deg)}
+#wrap[data-state="failed"] #earR{transform:rotate(44deg)}
+#wrap[data-state="failed"] #tail{animation:tailDroop 1s linear infinite}
+#wrap[data-state="failed"] #tear{animation:teardrop 2.1s steps(5,end) .3s infinite}
+#wrap.happy #petAnim{animation:happyHop .55s steps(4,end) 1 !important}
+
+/* a click while asleep gets a small stir, not the full happy-hop — the
+   eyes stay shut, so the pet must not look like it woke up and cheered */
+@keyframes stirNudge{
+  0%,100%{transform:translateX(0) rotate(0)}
+  30%{transform:translateX(-3px) rotate(-2deg)}
+  60%{transform:translateX(3px) rotate(2deg)}
+}
+#wrap.stir #petAnim{animation:stirNudge .42s steps(3,end) 1 !important}
+
+#wrap[data-state="eating"] #headAnim{animation:chew .5s steps(3,end) infinite}
+#wrap[data-state="eating"] #bodyBreathe{animation:chewBody .5s steps(2,end) infinite}
+#wrap[data-state="eating"] #tail{animation:tailIdle 1.4s ease-in-out infinite}
+
+#wrap[data-state="playing"] #petAnim{animation:chase 1.3s steps(6,end) infinite}
+#wrap[data-state="playing"] #armR{animation:pounceArm .32s ease-in-out infinite}
+#wrap[data-state="playing"] #armL{animation:pounceArm .32s ease-in-out infinite reverse}
+#wrap[data-state="playing"] #tail{animation:tailFast .32s ease-in-out infinite}
+
+#actionFx,#zzz{pointer-events:none}
+.fx-bowl{animation:bowlBob .5s steps(2,end) infinite}
+.fx-ball{animation:ballBounce 1.3s steps(6,end) infinite}
+#zzz{display:none}
+#wrap[data-state="sleeping"] #zzz{display:block}
+#zzz .fx-z{transform-box:fill-box;transform-origin:center;animation:zFloat 1.8s ease-out infinite}
+#zzz .fx-z.z2{animation-delay:.5s}
+#zzz .fx-z.z3{animation-delay:1s}
+
+/* a short cross-fade when the species is swapped */
+#petRoot{transition:opacity .16s steps(2,end)}
+#wrap.swapping #petRoot{opacity:0}
+</style>
+</head>
+<body>
+<div id="wrap" data-state="idle" data-eyes="basic" style="--gx:0;--gy:0">
+  <!-- 56 x 60 dots. main.js sizes the window to an exact multiple of
+       this grid so every dot lands on whole pixels. -->
+  <svg id="stageSvg" viewBox="-20 -40 280 300" xmlns="http://www.w3.org/2000/svg">
+    <g id="groundShadow" shape-rendering="crispEdges">
+      <rect x="90" y="215" width="60" height="5" fill="rgba(0,0,0,.15)"/>
+      <rect x="70" y="220" width="100" height="5" fill="rgba(0,0,0,.15)"/>
+      <rect x="90" y="225" width="60" height="5" fill="rgba(0,0,0,.15)"/>
+    </g>
+    <g id="petRoot"><g id="poops" shape-rendering="crispEdges"></g><g id="petAnim"></g></g>
+    <g id="actionFx" shape-rendering="crispEdges"></g>
+    <g id="zzz" shape-rendering="crispEdges"></g>
+  </svg>
+</div>
+
+<script>
+(function(){
+  var p = new URLSearchParams(location.search);
+  var careCbs = [];
+  window.__species = p.get('sp') || 'dodam';
+  window.pet = {
+    onConfig: function(fn){ setTimeout(function(){
+      fn({ species: window.__species,
+           pet:{ fur:'#F7F4ED', belly:'#FFFFFF', props:{head:'none',eyes:'none',hand:'none',body:'none'}, eyes:'basic' }, label:'' });
+    },0); },
+    onState: function(){}, onCare: function(fn){ careCbs.push(fn); }, onGaze: function(){},
+    hit: function(){}, dragStart: function(){}, dragEnd: function(){}, menu: function(){}, clean: function(){}
+  };
+  window.__fireCare = function(c){ careCbs.forEach(function(fn){ fn(c); }); };
+})();
+</script>
+<script src="pixel.js?v=1787583107"></script>
+<script src="gear.js?v=1787583107"></script>
+<script src="species.js?v=1787583107"></script>
+<script>
+(function(){
+  "use strict";
+
+  var wrap    = document.getElementById('wrap');
+  var svgEl   = document.getElementById('stageSvg');
+  var petAnim = document.getElementById('petAnim');
+  var petRoot = document.getElementById('petRoot');
+
+  var current = null;   // species key currently drawn
+  var isAsleep = false; // mirrors care.sleeping, so a click can react differently
+  var curSp = null, curPet = null, sleepShown = false;
+
+  /* ---------- colour maths ---------- */
+  function parse(hex){
+    var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
+    return m ? [parseInt(m[1],16), parseInt(m[2],16), parseInt(m[3],16)] : [176,128,82];
+  }
+  function toHex(c){
+    return '#' + c.map(function(v){
+      v = Math.max(0, Math.min(255, Math.round(v)));
+      return ('0'+v.toString(16)).slice(-2);
+    }).join('');
+  }
+  function mix(hex, target, t){
+    var a = parse(hex), b = parse(target);
+    return toHex([0,1,2].map(function(i){ return a[i] + (b[i]-a[i]) * t; }));
+  }
+
+  /* Shading depth is per species: the default ramp turns a white coat
+     grey, so a pale pet asks for a shallower one. */
+  var TONE = { lt:0.20, dk:0.22, bellyDk:0.14, nose:0.74, line:0.82 };
+
+  function paint(pet, sp){
+    curPet = pet;
+    var fur = pet.fur, belly = pet.belly;
+    var t = (sp && sp.tone) || {};
+    function f(k){ return t[k] === undefined ? TONE[k] : t[k]; }
+    svgEl.style.setProperty('--fur', fur);
+    svgEl.style.setProperty('--fur-lt', mix(fur, '#ffffff', f('lt')));
+    svgEl.style.setProperty('--fur-dk', mix(fur, '#000000', f('dk')));
+    svgEl.style.setProperty('--belly', belly);
+    svgEl.style.setProperty('--belly-dk', mix(belly, '#000000', f('bellyDk')));
+    svgEl.style.setProperty('--nose', mix(fur, '#241A14', f('nose')));
+    svgEl.style.setProperty('--line', mix(fur, '#231A14', f('line')));
+    wrap.setAttribute('data-eyes', pet.eyes || 'basic');
+    wearGear(pet);
+  }
+
+  /* Show the chosen item in each slot and hide the rest. Every item is
+     already in the DOM, so a change is a display flip, not a redraw. */
+  function wearGear(pet){
+    var props = pet.props || {};
+    (window.GEAR ? window.GEAR.slots : ['head']).forEach(function(slot){
+      var id = (slot === 'head') ? 'prop' : ('slot-' + slot);
+      var host = petAnim.querySelector('#' + id);
+      if(!host) return;
+      var chosen = props[slot] || 'none';
+      var kids = host.children;
+      for(var i=0;i<kids.length;i++){
+        kids[i].style.display = (kids[i].getAttribute('data-gear') === chosen) ? '' : 'none';
+      }
+    });
+  }
+
+  function applyOrigins(sp){
+    var o = sp.origins || {};
+    Object.keys(o).forEach(function(k){
+      svgEl.style.setProperty('--o-' + k, o[k]);
+    });
+    svgEl.style.setProperty('--ear-l', (sp.ear && sp.ear.l) || '0deg');
+    svgEl.style.setProperty('--ear-r', (sp.ear && sp.ear.r) || '0deg');
+  }
+
+  function draw(sp){
+    petAnim.innerHTML = sp.markup();
+    applyOrigins(sp);
+    current = sp.key;
+    curSp = sp;
+    sleepShown = false;
+    // the sleeping pose is skeleton-specific; the crab needs its own
+    wrap.setAttribute('data-species', sp.key);
+  }
+
+  /* ---------- config from main ---------- */
+  function applyConfig(cfg){
+    if(!cfg || !cfg.pet) return;
+    var sp = window.SPECIES.get(cfg.species);
+    if(sp.key !== current){
+      wrap.classList.add('swapping');
+      setTimeout(function(){
+        draw(sp);
+        paint(cfg.pet, sp);
+        // config can land after the care update that said "asleep"
+        applySleepSprite(isAsleep);
+        wrap.classList.remove('swapping');
+      }, current === null ? 0 : 160);
+    } else {
+      paint(cfg.pet, sp);
+      applySleepSprite(isAsleep);
+    }
+  }
+
+  /* ---------- action props ----------
+     "밥/놀기" only swapped the generic wave/jump before, so nothing on
+     screen said which one had happened. A bowl at the mouth and a ball
+     bouncing in front give each action its own silhouette, not just its
+     own timing. */
+  var actionFx = document.getElementById('actionFx');
+  var zzzLayer = document.getElementById('zzz');
+
+  var BOWL = ['.KKKKK.', 'KYYYYYK', 'KWWWWWK', '.KKKKK.', '..KKK..'];
+  var BALL = ['.KKK.', 'KWWWK', 'KWKWK', 'KWWWK', '.KKK.'];
+  var Z = ['KKKK', '..K.', '.K..', 'KKKK'];
+
+  function setActionFx(state){
+    if(state === 'eating'){
+      actionFx.innerHTML = '<g class="fx-bowl">' + window.PIXEL.encode(BOWL, 19, 29) + '</g>';
+    } else if(state === 'playing'){
+      actionFx.innerHTML = '<g class="fx-ball">' + window.PIXEL.encode(BALL, 33, 32) + '</g>';
+    } else {
+      actionFx.innerHTML = '';
+    }
+  }
+
+  // positioned for the sleeping pose specifically: just above and to the
+  // right of where the head comes to rest, not where it stands
+  zzzLayer.innerHTML =
+    '<g class="fx-z">'    + window.PIXEL.encode(Z, 32, 7) + '</g>' +
+    '<g class="fx-z z2">' + window.PIXEL.encode(Z, 36, 3) + '</g>' +
+    '<g class="fx-z z3">' + window.PIXEL.encode(Z, 40, -1) + '</g>';
+
+  window.pet.onConfig(applyConfig);
+  window.pet.onState(function(s){
+    wrap.setAttribute('data-state', s);
+    setActionFx(s);
+  });
+
+  /* Species that ship a purpose-drawn sleeping sprite swap the whole
+     drawing for it; the rest fall back to the crouch built from the
+     standing rig. `data-sleepart` lets the CSS tell the two apart. */
+  function applySleepSprite(sleeping){
+    if(!curSp || !curSp.sleepMarkup) return;
+    if(sleeping && !sleepShown){
+      petAnim.innerHTML = curSp.sleepMarkup();
+      sleepShown = true;
+      wrap.setAttribute('data-sleepart', '1');
+    } else if(!sleeping && sleepShown){
+      draw(curSp);
+      if(curPet) paint(curPet, curSp);
+      wrap.removeAttribute('data-sleepart');
+    }
+  }
+
+  /* ---------- care ---------- */
+  var poopLayer = document.getElementById('poops');
+
+  window.pet.onCare(function(c){
+    if(!c) return;
+    wrap.setAttribute('data-mood', c.mood || 'good');
+    isAsleep = !!c.sleeping;
+    // while asleep the care state owns the pose; main suppresses idle
+    // behaviour for the same stretch so the two never fight
+    if(c.sleeping) wrap.setAttribute('data-state', 'sleeping');
+    else if(wrap.getAttribute('data-state') === 'sleeping') wrap.setAttribute('data-state', 'idle');
+    applySleepSprite(!!c.sleeping);
+    var html = '';
+    (c.poops || []).forEach(function(p){
+      html += '<g data-poop="' + p.id + '">' +
+              window.PIXEL.encode(window.GEAR.poop, p.x, 40) + '</g>';
+    });
+    poopLayer.innerHTML = html;
+  });
+
+  /* Gaze offsets are snapped to whole dots (5 units) before they reach
+     CSS — a half-dot head shift is exactly what makes pixel art mush. */
+  var DOT = 5;
+  window.pet.onGaze(function(g){
+    wrap.style.setProperty('--gx', g.gx.toFixed(3));
+    wrap.style.setProperty('--gy', g.gy.toFixed(3));
+    wrap.style.setProperty('--hx', (Math.round(g.gx * 2) * DOT) + 'px');
+    wrap.style.setProperty('--hy', (Math.round(g.gy) * DOT) + 'px');
+    wrap.style.setProperty('--px', (Math.round(g.gx * 1.2) * DOT) + 'px');
+    wrap.style.setProperty('--py', (Math.round(g.gy * 1.2) * DOT) + 'px');
+    wrap.style.setProperty('--qx', (Math.round(g.gx * -1) * DOT) + 'px');
+  });
+
+  /* ---------- click-through toggling ---------- */
+  var lastOver = null;
+  function testHit(x, y){
+    var el = document.elementFromPoint(x, y);
+    var over = !!(el && el.closest && el.closest('#petRoot'));
+    if(over !== lastOver){ lastOver = over; window.pet.hit(over); }
+  }
+  document.addEventListener('mousemove', function(e){ testHit(e.clientX, e.clientY); });
+
+  /* ---------- drag vs. pet ---------- */
+  var down = null;
+  petRoot.addEventListener('mousedown', function(e){
+    if(e.button !== 0) return;
+    var poop = e.target.closest && e.target.closest('[data-poop]');
+    if(poop){
+      window.pet.clean(poop.getAttribute('data-poop'));
+      e.preventDefault();
+      return;                        // cleaning is not the start of a drag
+    }
+    down = { x:e.screenX, y:e.screenY };
+    petRoot.classList.add('dragging');
+    window.pet.dragStart();
+  });
+  window.addEventListener('mouseup', function(e){
+    if(!down) return;
+    window.pet.dragEnd();
+    petRoot.classList.remove('dragging');
+    var moved = Math.hypot(e.screenX - down.x, e.screenY - down.y);
+    down = null;
+    if(moved < 4) pat(e.clientX, e.clientY);
+  });
+  petRoot.addEventListener('contextmenu', function(e){
+    e.preventDefault();
+    window.pet.menu();
+  });
+
+  /* ---------- petting ---------- */
+  var HEART_SVG =
+    '<svg width="18" height="18" viewBox="0 0 9 9" shape-rendering="crispEdges">' +
+    '<path fill="#E8556B" d="M1 1h2v1H1zM6 1h2v1H6zM0 2h4v1H0zM5 2h4v1H5z' +
+    'M0 3h9v1H0zM1 4h7v1H1zM2 5h5v1H2zM3 6h3v1H3zM4 7h1v1H4z"/></svg>';
+
+  function pat(cx, cy){
+    // A full happy-hop-plus-hearts on a click read as wide awake even
+    // though the eyes stayed shut — the same complaint as the drag bug,
+    // just from petting instead of moving. A sleeping pet gets a small
+    // stir instead: proof the click landed, without looking awake.
+    if(isAsleep){ stir(); return; }
+
+    wrap.classList.remove('happy');
+    void wrap.offsetWidth;
+    wrap.classList.add('happy');
+    setTimeout(function(){ wrap.classList.remove('happy'); }, 620);
+    for(var i=0;i<3;i++){
+      (function(i){
+        setTimeout(function(){
+          var h = document.createElement('span');
+          h.className = 'heart';
+          h.innerHTML = HEART_SVG;
+          h.style.left = (cx + (Math.random()*30 - 15)) + 'px';
+          h.style.top  = (cy - 10) + 'px';
+          wrap.appendChild(h);
+          setTimeout(function(){ if(h.parentNode) h.parentNode.removeChild(h); }, 1000);
+        }, i * 110);
+      })(i);
+    }
+  }
+
+  function stir(){
+    wrap.classList.remove('stir');
+    void wrap.offsetWidth;
+    wrap.classList.add('stir');
+    setTimeout(function(){ wrap.classList.remove('stir'); }, 420);
+  }
+
+  /* ---------- blinking ---------- */
+  (function blinkLoop(){
+    setTimeout(function(){
+      var s = wrap.getAttribute('data-state');
+      if(s !== 'review' && s !== 'failed' && s !== 'running'){
+        wrap.classList.add('blink');
+        setTimeout(function(){ wrap.classList.remove('blink'); }, 130);
+      }
+      blinkLoop();
+    }, 2200 + Math.random() * 3600);
+  })();
+
+  /* first paint before main sends config */
+  draw(window.SPECIES.get('capybara'));
+  paint({ fur:'#B98052', belly:'#EBD3A9', props:{ head:'yuzu' }, eyes:'basic' }, window.SPECIES.get('capybara'));
+})();
+</script>
+
+<script>
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    window.__fireCare({ hunger:60, fun:60, energy:10, clean:80, poops:[], sleeping:true, mood:'good' });
+  }, 300);
+});
+</script>
+</body>
+</html>

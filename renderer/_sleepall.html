@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><title>sleeping roster</title>
+<link rel="stylesheet" href="sprite.css">
+<style>
+body{margin:0;background:#26262b;font:12px -apple-system,sans-serif;color:#bbb}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:12px}
+.cell{background:#1b1b1f;border-radius:8px;padding:6px;text-align:center}
+.cell svg{display:block;width:100%;height:auto}
+.n{margin-top:2px;font-size:11px}
+</style></head><body>
+<div class="grid" id="g"></div>
+<script src="pixel.js"></script><script src="gear.js"></script><script src="species.js"></script>
+<script>
+function parse(h){var m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[0,0,0];}
+function toHex(c){return '#'+c.map(function(v){v=Math.max(0,Math.min(255,Math.round(v)));return ('0'+v.toString(16)).slice(-2);}).join('');}
+function mix(a,b,t){var x=parse(a),y=parse(b);return toHex([0,1,2].map(function(i){return x[i]+(y[i]-x[i])*t;}));}
+var g=document.getElementById('g');
+window.SPECIES.list.forEach(function(sp){
+  var fur=sp.fur, belly=sp.belly;
+  var T={lt:.20,dk:.22,bellyDk:.14,nose:.74,line:.82}, o=sp.tone||{};
+  function f(k){return o[k]===undefined?T[k]:o[k];}
+  var vars='--fur:'+fur+';--fur-lt:'+mix(fur,'#ffffff',f('lt'))+';--fur-dk:'+mix(fur,'#000000',f('dk'))+
+    ';--belly:'+belly+';--belly-dk:'+mix(belly,'#000000',f('bellyDk'))+
+    ';--nose:'+mix(fur,'#241A14',f('nose'))+';--line:'+mix(fur,'#231A14',f('line'))+';';
+  var art = sp.sleepMarkup ? sp.sleepMarkup() : '<text x="60" y="140" fill="#777" font-size="14">수면 스프라이트 없음</text>';
+  var d=document.createElement('div'); d.className='cell';
+  d.innerHTML='<svg viewBox="-20 60 280 180" style="'+vars+'">'+art+'</svg><div class="n">'+sp.name+' · '+sp.label+'</div>';
+  g.appendChild(d);
+});
+</script></body></html>

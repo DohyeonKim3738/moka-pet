@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>돌보기</title>
+<link rel="stylesheet" href="sprite.css">
+<style>
+:root{
+  --bg:#F2F1EE; --card:#FFFFFF; --line:#E4E2DD;
+  --text:#1D1B18; --muted:#8B8780; --track:#E6E4DF; --fill:#B98052; --accent:#B98052;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#1B1A18; --card:#252320; --line:#343128;
+         --text:#F0EDE7; --muted:#9A948B; --track:#3A3630; --fill:#D2A374; --accent:#D2A374; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);display:flex;flex-direction:column;
+  font:14px -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",sans-serif;
+  -webkit-user-select:none;user-select:none;}
+/* flex:0 0 auto or the header is squeezed by a tall page — which is what
+   happened once the game, the roster and the family tree were added: the
+   bar collapsed and the cards slid up under the traffic lights. */
+header{-webkit-app-region:drag;flex:0 0 auto;height:38px;min-height:38px;
+  padding:0 16px 0 82px;display:flex;align-items:center;background:var(--bg)}
+header h1{font-size:13px;font-weight:600;color:var(--muted);margin:0}
+main{flex:1 1 auto;padding:4px 18px 18px;overflow:auto}
+
+.card{-webkit-app-region:no-drag;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;padding:16px 18px}
+.card + .card{margin-top:10px}
+
+.who{display:flex;align-items:baseline;gap:10px}
+.who .name{font-size:19px;font-weight:700}
+.who .age{font-size:13px;color:var(--muted)}
+.exp{margin-top:10px}
+.exp .cap{font-size:11.5px;color:var(--muted);margin-top:5px}
+
+.bar{height:8px;border-radius:4px;background:var(--track);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--fill);transition:width .3s ease}
+
+.stat{display:flex;align-items:center;gap:12px;margin-top:12px}
+.stat:first-child{margin-top:0}
+.stat .lb{flex:0 0 62px;font-size:13px}
+.stat .bar{flex:1 1 auto}
+.stat .pc{flex:0 0 42px;text-align:right;font-size:12.5px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.stat.low .bar i{background:#C9492F}
+.stat.mid .bar i{background:#D89A3A}
+
+.acts{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.acts button{-webkit-app-region:no-drag;appearance:none;cursor:pointer;
+  border:1px solid var(--line);background:var(--bg);color:var(--text);
+  font:inherit;font-size:13px;font-weight:600;padding:9px 14px;border-radius:10px}
+.acts button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.acts button:disabled{opacity:.4;cursor:default}
+
+.sub{display:flex;align-items:center;gap:9px}
+.sub span{font-size:13px}
+input[type=checkbox]{-webkit-app-region:no-drag;accent-color:var(--fill);width:15px;height:15px}
+
+.note{margin:12px 2px 0;font-size:12px;color:var(--muted);line-height:1.5}
+.tricks{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.tricks button{-webkit-app-region:no-drag;appearance:none;cursor:pointer;
+  border:1px solid var(--line);background:var(--bg);color:var(--text);
+  font:inherit;font-size:12.5px;padding:6px 14px;border-radius:999px}
+.tricks button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.tricks button:disabled{opacity:.45;cursor:default}
+.rename{appearance:none;background:none;border:0;padding:0 2px;cursor:pointer;
+  color:var(--muted);font-size:13px;line-height:1}
+.rename:hover{color:var(--accent)}
+.who input.nameEdit{font-size:19px;font-weight:700;color:var(--text);
+  background:var(--bg);border:1px solid var(--accent);border-radius:8px;
+  padding:2px 8px;width:180px;font-family:inherit}
+#log{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+#log .ttl{font-size:12px;color:var(--muted);margin-bottom:8px}
+#log ul{list-style:none;margin:0;padding:0}
+#log li{display:flex;gap:10px;font-size:12px;padding:3px 0}
+#log li b{font-weight:400;color:var(--muted);flex:0 0 62px}
+#gameCard .ttl{font-size:12px;color:var(--muted);margin-bottom:10px}
+.game{display:flex;align-items:center;gap:18px}
+.game .stage{width:110px;height:110px;flex:0 0 auto}
+.game .stage svg{width:100%;height:100%;display:block}
+/* Mirroring the whole pet was invisible — these sprites are drawn
+   face-on and are nearly symmetric. Turning the head is what reads. */
+.game .stage svg #headGaze{transition:transform .18s steps(3,end)}
+.game .stage.left svg #headGaze{transform:translateX(-16px)}
+.game .stage.right svg #headGaze{transform:translateX(16px)}
+.game .stage.left svg #bodyBreathe{transform:translateX(-5px)}
+.game .stage.right svg #bodyBreathe{transform:translateX(5px)}
+.game .pick{display:flex;flex-direction:column;gap:8px}
+.game .pick button{-webkit-app-region:no-drag;appearance:none;cursor:pointer;
+  border:1px solid var(--line);background:var(--bg);color:var(--text);
+  font:inherit;font-size:13px;font-weight:600;padding:9px 18px;border-radius:10px}
+.game .pick button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.game .pick button:disabled{opacity:.45;cursor:default}
+#tree{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+#tree .ttl{font-size:12px;color:var(--muted);margin-bottom:8px}
+#tree .line{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+#tree .who{display:flex;align-items:center;gap:5px;font-size:12px}
+#tree .who i{width:26px;height:26px;display:block;font-style:normal}
+#tree .who i svg{width:100%;height:100%;display:block}
+#tree .arrow{color:var(--muted)}
+#family{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+#family .ttl{font-size:12px;color:var(--muted);margin-bottom:8px}
+#family .mates{display:flex;flex-wrap:wrap;gap:8px}
+#family .mates button{-webkit-app-region:no-drag;appearance:none;cursor:pointer;
+  border:1px solid var(--line);background:var(--bg);color:var(--text);
+  font:inherit;font-size:12.5px;padding:7px 12px;border-radius:999px}
+#family .mates button:hover{border-color:var(--accent);color:var(--accent)}
+#family .none{font-size:12px;color:var(--muted)}
+#traits{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+#traits .tag{border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:11.5px}
+#traits .tag b{font-weight:700;color:var(--text)}
+#traits .tag.note{border-style:dashed;color:var(--muted)}
+.grow .pair{display:flex;align-items:flex-end;justify-content:center;gap:18px}
+.grow figure{margin:0;width:96px;text-align:center}
+.grow .art{position:relative;height:96px;display:flex;align-items:flex-end;justify-content:center}
+.grow .art svg{width:100%;height:100%;display:block}
+/* The next stage is a shape you have not met yet: the real sprite,
+   flattened to a silhouette. brightness(0) paints it black, which
+   vanishes on a dark card — so dark mode inverts it to white. */
+.grow .art.next svg{filter:brightness(0);opacity:.5}
+@media (prefers-color-scheme: dark){
+  .grow .art.next svg{filter:brightness(0) invert(1);opacity:.42}
+}
+/* Before it hatches even the shape is a secret, so the silhouette is a
+   blank one — the real sprite would name the species. */
+.grow .art.mystery::before{content:'';position:absolute;left:50%;bottom:10px;
+  transform:translateX(-50%);width:62px;height:64px;
+  border-radius:31px 31px 24px 24px;background:var(--text);opacity:.16}
+.grow .art.next::after{content:'?';position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:30px;font-weight:800;color:var(--accent)}
+.grow figcaption{margin-top:6px;font-size:12px;color:#6B5E4E;white-space:nowrap}
+.grow .to{padding-bottom:34px;font-size:18px;color:#C4B7A5}
+.link{appearance:none;background:none;border:0;padding:0;cursor:pointer;
+  color:#9A8F80;text-decoration:underline;font:inherit}
+.link:hover{color:#6B5E4E}
+.link:disabled{cursor:default;text-decoration:none;color:var(--muted)}
+.roster{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px}
+.roster button{appearance:none;background:none;border:1px solid transparent;border-radius:10px;
+  padding:4px 2px 5px;cursor:default;font:inherit;color:var(--muted);text-align:center}
+.roster button.met{cursor:pointer}
+.roster button.met:hover{border-color:var(--line);background:var(--bg)}
+.roster button.here{border-color:var(--accent)}
+.roster .slot{height:44px;display:flex;align-items:flex-end;justify-content:center}
+.roster svg{width:100%;height:100%;display:block}
+.roster button:not(.met) svg{filter:brightness(0);opacity:.3}
+@media (prefers-color-scheme: dark){
+  .roster button:not(.met) svg{filter:brightness(0) invert(1);opacity:.28}
+}
+.roster .nm{display:block;font-size:10.5px;margin-top:3px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.roster button.met .nm{color:var(--text)}
+</style></head>
+<body>
+  <header><h1>돌보기 <span id="ver"></span></h1></header>
+  <main>
+    <div class="card">
+      <div class="who">
+        <span class="name" id="name">—</span>
+        <button class="rename" id="rename" title="이름 바꾸기">✎</button>
+        <span class="age" id="age"></span>
+      </div>
+      <div class="exp">
+        <div class="bar"><i id="expBar" style="width:0%"></i></div>
+        <div class="cap" id="expText"></div>
+      </div>
+      <div class="cap" id="traits"></div>
+    </div>
+
+    <div class="card" id="gameCard">
+      <div class="ttl">어느 쪽을 볼까요?</div>
+      <div class="game">
+        <div class="stage" id="gameArt"></div>
+        <div class="pick">
+          <button id="gLeft">◀ 왼쪽</button>
+          <button id="gRight">오른쪽 ▶</button>
+        </div>
+      </div>
+      <p class="note" id="gameMsg">다섯 번 중 세 번을 맞히면 이겨요.</p>
+    </div>
+
+    <div class="card grow">
+      <div class="pair">
+        <figure><div class="art" id="artNow"></div><figcaption id="capNow">—</figcaption></figure>
+        <div class="to">→</div>
+        <figure><div class="art next" id="artNext"></div><figcaption id="capNext">—</figcaption></figure>
+      </div>
+      <p class="note" id="growNote"></p>
+    </div>
+
+    <div class="card">
+      <div class="stat" id="s-hunger"><span class="lb">배고픔</span><span class="bar"><i></i></span><span class="pc"></span></div>
+      <div class="stat" id="s-fun"><span class="lb">즐거움</span><span class="bar"><i></i></span><span class="pc"></span></div>
+      <div class="stat" id="s-energy"><span class="lb">에너지</span><span class="bar"><i></i></span><span class="pc"></span></div>
+      <div class="stat" id="s-clean"><span class="lb">청결</span><span class="bar"><i></i></span><span class="pc"></span></div>
+
+      <div class="acts">
+        <button id="feed">밥 주기</button>
+        <button id="snack">간식</button>
+        <button id="play">놀아주기</button>
+        <button id="walk">산책</button>
+        <button id="train">훈련</button>
+        <button id="sleep">재우기</button>
+        <button id="clean">치우기</button>
+      </div>
+      <div class="sub" style="margin-top:14px">
+        <input type="checkbox" id="chat">
+        <span>말 걸기</span>
+      </div>
+      <div class="sub" style="margin-top:8px">
+        <input type="checkbox" id="night">
+        <span id="nightLabel">밤에는 재우기</span>
+      </div>
+      <div class="sub" style="margin-top:8px">
+        <input type="checkbox" id="away">
+        <span id="awayLabel">자리 비우면 재우기</span>
+      </div>
+      <div class="sub" style="margin-top:8px">
+        <input type="checkbox" id="zoom">
+        <span id="zoomLabel">밥·놀기 할 때 가까이 오기</span>
+      </div>
+      <div class="tricks" id="tricks"></div>
+      <p class="note" id="hint"></p>
+      <p class="note"><span id="met"></span>
+        <button id="restart" class="link">새 알 받기</button></p>
+      <div class="roster" id="roster"></div>
+      <div id="family"></div>
+      <div id="tree"></div>
+      <div id="log"></div>
+    </div>
+  </main>
+
+<script src="pixel.js"></script>
+<script src="gear.js"></script>
+<script src="tint.js"></script>
+<script src="species.js"></script>
+<script>
+(function(){
+  "use strict";
+  var api = window.care || { onState:function(){}, act:function(){}, ready:function(){},
+                             setChat:function(){}, restart:function(){}, setNight:function(){},
+                             pick:function(){}, mate:function(){}, game:function(){},
+                             rename:function(){}, setAway:function(){}, trick:function(){},
+                             setZoom:function(){} };
+  var KEYS = ['hunger','fun','energy','clean'];
+
+  /* ---------- what it looks like now, and what comes next ----------
+     The next stage is drawn from the same sprite the pet will actually
+     become, blacked out — a silhouette of the real thing, not a guess. */
+  function spriteFor(species, stage, pet, k, build){
+    var sp = window.SPECIES.get(species);
+    var art = (stage === 'egg')
+      ? window.SPECIES.eggMarkup(false)
+      : window.SPECIES.at(species, stage, build).markup();
+    // stages differ in size, so the view box zooms out for the small ones
+    // exactly as the window does in the real thing. The factors come from
+    // care.js with the state, so there is only ever one copy of them.
+    k = k || 1;
+    var w = 280 / k, h = 300 / k;
+    var vb = (-20 - (w - 280) / 2) + ' ' + (-40 - (h - 300)) + ' ' + w + ' ' + h;
+    return '<svg viewBox="' + vb + '" style="' + window.TINT.css(pet || {}, sp) + '">' + art + '</svg>';
+  }
+
+  function label(stage, title, from, age){
+    if (stage === 'egg') return '알';
+    return title + ' · ' + (age !== undefined ? age : from) + '살';
+  }
+
+  function drawGrowth(c){
+    var pet = c.pet || {};
+    var sc = c.scale || {};
+    // the shell is neutral: its colour would hint at who is inside
+    var nowPet = c.egg ? { fur: '#CFC3AB', belly: '#EFE7D6' } : pet;
+    document.getElementById('artNow').innerHTML = spriteFor(c.species, c.stage, nowPet, sc.now, c.build);
+    document.getElementById('capNow').textContent =
+      c.egg ? '알' : label(c.stage, c.title, null, c.age);
+
+    var next = c.next;
+    var nextArt = document.getElementById('artNext');
+    var nextCap = document.getElementById('capNext');
+    var note = document.getElementById('growNote');
+    if (!next){
+      nextArt.innerHTML = '';
+      nextArt.classList.remove('next');
+      nextArt.classList.remove('mystery');
+      nextCap.textContent = '마지막 단계';
+      note.textContent = '더 자랄 곳이 없어요. 오래오래 함께 지내요.';
+      return;
+    }
+    nextArt.classList.add('next');
+    if (c.egg){
+      nextArt.classList.add('mystery');
+      nextArt.innerHTML = '';
+    } else {
+      nextArt.classList.remove('mystery');
+      nextArt.innerHTML = spriteFor(c.species, next.stage, pet, sc.next, c.build);
+    }
+    nextCap.textContent = label(next.stage, next.title, next.from);
+    note.textContent = c.egg
+      ? '알에서 깨어나면 아기가 돼요.'
+      : (next.from + '살이 되면 ' + next.title + (next.ro || '로') + ' 자라요.');
+  }
+
+  /* Everyone in the cast. Met pets show as themselves at the age they
+     are; the rest are silhouettes — you know who exists, not which egg
+     you are holding. Clicking a met pet brings it to the desk. */
+  function drawRoster(list){
+    var host = document.getElementById('roster');
+    if(!list || !list.length){ host.innerHTML = ''; return; }
+    host.innerHTML = '';
+    list.forEach(function(r){
+      var b = document.createElement('button');
+      b.className = (r.met ? 'met ' : '') + (r.here ? 'here' : '');
+      var art = r.met
+        ? spriteFor(r.species || r.key, r.stage, { fur: r.fur, belly: r.belly }, r.scale, r.build)
+        : spriteFor(r.species || r.key, 'adult', { fur: r.fur, belly: r.belly }, 1);
+      b.innerHTML = '<span class="slot">' + art + '</span>' +
+                    '<span class="nm">' + (r.met ? r.name : '???') + '</span>';
+      if(r.met && !r.here) b.addEventListener('click', function(){ api.pick(r.key); });
+      host.appendChild(b);
+    });
+  }
+
+  /* Who this particular pet turned into: what it weighs, what it is like,
+     and what you have taught it. */
+  function drawTraits(c){
+    var host = document.getElementById('traits');
+    if (c.egg) { host.innerHTML = ''; return; }
+    var bits = [];
+    bits.push('<span class="tag">무게 <b>' + c.weight + 'kg</b> · ' + c.buildLabel + '</span>');
+    bits.push('<span class="tag">성격 <b>' +
+              (c.personality || '아직 몰라요') + '</b></span>');
+    // say what the personality and build actually do, or they read as decoration
+    if (c.natureNote) bits.push('<span class="tag note">' + c.natureNote + '</span>');
+    var learned = (c.tricks || []).length;
+    bits.push('<span class="tag">재주 <b>' + learned + ' / ' + c.trickTotal + '</b>' +
+              (learned ? ' · ' + c.tricks.join(', ') : '') + '</span>');
+    if ((c.bornWith || []).length) {
+      bits.push('<span class="tag">부모에게 물려받은 재주 <b>' + c.bornWith.join(', ') + '</b></span>');
+    }
+    host.innerHTML = bits.join('');
+  }
+
+  /* Two grown pets make a third. The child is a new member of the family,
+     not a replacement for either of them. */
+  function drawFamily(c){
+    var host = document.getElementById('family');
+    if (c.egg) { host.innerHTML = ''; return; }
+
+    var out = '';
+    if (c.parents) {
+      out += '<div class="ttl">부모 · ' + c.parents[0] + ' × ' + c.parents[1] + '</div>';
+    }
+    out += '<div class="ttl">짝짓기</div>';
+    if (c.full) {
+      out += '<div class="none">식구가 가득 찼어요</div>';
+    } else if (c.mateBlocked) {
+      out += '<div class="none">' + c.name + '\u2005·\u2005' + c.mateBlocked + '</div>';
+    } else if (!c.mates || !c.mates.length) {
+      out += '<div class="none">함께할 어른이 아직 없어요</div>';
+    } else {
+      out += '<div class="mates">' + c.mates.map(function(m){
+        return '<button data-mate="' + m.id + '">' + m.name + '와 짝짓기</button>';
+      }).join('') + '</div>';
+    }
+    host.innerHTML = out;
+    Array.prototype.forEach.call(host.querySelectorAll('[data-mate]'), function(b){
+      b.addEventListener('click', function(){ api.mate(b.getAttribute('data-mate')); });
+    });
+  }
+
+  /* ---------- the guessing game ----------
+     Five rounds. You call a side, the pet turns; three right wins. The
+     pet on screen is the real one, at its real age and build. */
+  var game = { round: 0, wins: 0, busy: false, sprite: '', over: false };
+
+  function gameFace(dir){
+    document.getElementById('gameArt').className = 'stage ' + dir;
+  }
+
+  function resetGame(c){
+    game = { round: 0, wins: 0, busy: false, over: false,
+             sprite: spriteFor(c.species, c.stage, c.pet || {}, 1, c.build) };
+    document.getElementById('gameArt').innerHTML = game.sprite;
+    gameFace('right');
+    document.getElementById('gameMsg').textContent = '다섯 번 중 세 번을 맞히면 이겨요.';
+  }
+
+  function drawGame(c){
+    var card = document.getElementById('gameCard');
+    if (c.egg) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    if (!game.sprite) resetGame(c);
+
+    var stop = game.busy || game.over || !c.canGame;
+    ['gLeft','gRight'].forEach(function(id){
+      document.getElementById(id).disabled = stop;
+    });
+    if (!c.canGame && !game.over && !game.busy) {
+      document.getElementById('gameMsg').textContent = c.gameBlocked || '';
+    }
+  }
+
+  function playRound(guess){
+    if (game.busy || game.over) return;
+    game.busy = true;
+    var turned = Math.random() < 0.5 ? 'left' : 'right';
+    var msg = document.getElementById('gameMsg');
+    msg.textContent = '…';
+    document.getElementById('gameArt').className = 'stage';   // face front first
+    setTimeout(function(){
+      gameFace(turned);
+      game.round += 1;
+      var hit = turned === guess;
+      if (hit) game.wins += 1;
+      msg.textContent = (hit ? '맞췄어요!' : '아깝다!') +
+                        '  ' + game.wins + ' / ' + game.round;
+      game.busy = false;
+      if (game.round >= 5) {
+        game.over = true;
+        var won = game.wins >= 3;
+        msg.textContent = won ? ('이겼어요! ' + game.wins + ' / 5')
+                              : ('졌어요… ' + game.wins + ' / 5');
+        api.game(won);
+        setTimeout(function(){ game.sprite = ''; }, 1600);   // next open starts fresh
+      }
+      drawGame(lastState || {});
+    }, 420);
+  }
+
+  ['gLeft','gRight'].forEach(function(id){
+    document.getElementById(id).addEventListener('click', function(){
+      playRound(id === 'gLeft' ? 'left' : 'right');
+    });
+  });
+
+  /* ---------- the family tree ----------
+     Two parents to a child means it is not a tree in the strict sense, so
+     it is drawn as what it is: pairs, and who came of them. */
+  function drawTree(list){
+    var host = document.getElementById('tree');
+    var kids = (list || []).filter(function(r){ return r.parents && r.parents.length === 2; });
+    if (!kids.length) { host.innerHTML = ''; return; }
+    var by = {};
+    (list || []).forEach(function(r){ by[r.key] = r; });
+
+    function chip(r, known){
+      if (!r) return '<span class="who">?</span>';
+      var art = known
+        ? spriteFor(r.species || r.key, r.stage, { fur: r.fur, belly: r.belly }, r.scale, r.build)
+        : '';
+      return '<span class="who"><i>' + art + '</i>' + (known ? r.name : '알') + '</span>';
+    }
+
+    host.innerHTML = '<div class="ttl">가계도</div>' + kids.map(function(k){
+      return '<div class="line">' +
+        chip(by[k.parents[0]], true) + '<span class="arrow">×</span>' +
+        chip(by[k.parents[1]], true) + '<span class="arrow">→</span>' +
+        chip(k, k.met) + '</div>';
+    }).join('');
+  }
+
+  /* ---------- naming ----------
+     Click the pencil, type, Enter. Escape puts it back. */
+  var editing = false;
+  function startRename(current){
+    if (editing) return;
+    editing = true;
+    var host = document.querySelector('.who');
+    var span = document.getElementById('name');
+    var input = document.createElement('input');
+    input.className = 'nameEdit';
+    input.value = current || '';
+    input.maxLength = 12;
+    span.style.display = 'none';
+    document.getElementById('rename').style.display = 'none';
+    host.insertBefore(input, span);
+    input.focus();
+    input.select();
+
+    function done(save){
+      if (!editing) return;
+      editing = false;
+      var v = input.value.trim();
+      input.remove();
+      span.style.display = '';
+      document.getElementById('rename').style.display = '';
+      if (save && v && v !== current) api.rename(v);
+    }
+    input.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') done(true);
+      else if (e.key === 'Escape') done(false);
+    });
+    input.addEventListener('blur', function(){ done(true); });
+  }
+
+  document.getElementById('rename').addEventListener('click', function(){
+    if (lastState && !lastState.egg) startRename(lastState.name);
+  });
+
+  /* ---------- the record ---------- */
+  function ago(t){
+    var d = Math.floor((Date.now() - t) / 86400000);
+    if (d <= 0) return '오늘';
+    if (d === 1) return '어제';
+    if (d < 30) return d + '일 전';
+    return Math.floor(d / 30) + '달 전';
+  }
+
+  function drawLog(c){
+    var host = document.getElementById('log');
+    var list = c.log || [];
+    if (c.egg || !list.length) { host.innerHTML = ''; return; }
+    var born = c.bornAt ? '<div class="ttl">기록 · ' + ago(c.bornAt) + '에 태어났어요</div>'
+                        : '<div class="ttl">기록</div>';
+    host.innerHTML = born + '<ul>' + list.map(function(e){
+      return '<li><b>' + ago(e.t) + '</b><span>' + e.text + '</span></li>';
+    }).join('') + '</ul>';
+  }
+
+  /* One button per trick it actually knows — pressing it makes the pet do
+     the thing, out on the desk. */
+  function drawTricks(c){
+    var host = document.getElementById('tricks');
+    var list = (c.tricks || []);
+    if (c.egg || !list.length) { host.innerHTML = ''; return; }
+    host.innerHTML = list.map(function(t){
+      return '<button data-trick="' + t + '"' + (c.energy < 12 ? ' disabled' : '') +
+             '>' + t + '</button>';
+    }).join('');
+    Array.prototype.forEach.call(host.querySelectorAll('[data-trick]'), function(b){
+      b.addEventListener('click', function(){ api.trick(b.getAttribute('data-trick')); });
+    });
+  }
+
+  function setNightUI(c){
+    document.getElementById('night').checked = c.night !== false;
+    if (c.nightFrom !== undefined) {
+      document.getElementById('nightLabel').textContent =
+        '밤에는 재우기 (' + c.nightFrom + '시~' + c.nightTo + '시)';
+    }
+    document.getElementById('away').checked = c.away !== false;
+    if (c.awayMin !== undefined) {
+      document.getElementById('awayLabel').textContent =
+        '자리 비우면 재우기 (' + c.awayMin + '분)';
+    }
+    document.getElementById('zoom').checked = c.zoom !== false;
+    // when the pet is already big the setting does nothing, and saying so
+    // is better than leaving a checkbox that has no effect
+    document.getElementById('zoomLabel').textContent =
+      (c.zoomFactor && c.zoomFactor > 1.01)
+        ? '밥·놀기 할 때 가까이 오기 (' + c.zoomFactor.toFixed(1) + '배)'
+        : '밥·놀기 할 때 가까이 오기 (지금 크기면 그대로)';
+  }
+
+  function setStat(key, v){
+    var el = document.getElementById('s-' + key);
+    el.className = 'stat' + (v < 25 ? ' low' : (v < 55 ? ' mid' : ''));
+    el.querySelector('i').style.width = v + '%';
+    el.querySelector('.pc').textContent = v + '%';
+  }
+
+  var lastState = null;
+  api.onState(function(c){
+    if(!c) return;
+    lastState = c;
+    if(c.version) document.getElementById('ver').textContent = 'v' + c.version;
+    if (!editing) document.getElementById('name').textContent = c.egg ? '알' : (c.name || '');
+    document.getElementById('rename').style.display = c.egg ? 'none' : '';
+    drawGrowth(c);
+
+    drawRoster(c.roster);
+    drawGame(c);
+    drawTree(c.roster);
+    drawFamily(c);
+    drawLog(c);
+    var met = document.getElementById('met');
+    var restart = document.getElementById('restart');
+    if (c.total) met.textContent = '만난 친구 ' + c.met + ' / ' + c.total + '   ·   ';
+    restart.disabled = !c.left;
+    restart.textContent = c.left ? ('새 알 받기 (' + c.left + '마리 남음)') : '모두 만났어요';
+
+    // An egg has no stats and no age — it has a hatching bar and one
+    // thing you can do for it.
+    if(c.egg){
+      document.getElementById('age').textContent = '누가 나올까요';
+      document.getElementById('expBar').style.width = (c.hatch || 0) + '%';
+      document.getElementById('expText').textContent =
+        '부화까지 ' + (c.hatch || 0) + '%   ·   쓰다듬으면 빨리 깨어나요';
+      KEYS.forEach(function(k){ setStat(k, 0); });
+      ['feed','snack','play','walk','train','sleep','clean'].forEach(function(k){
+        document.getElementById(k).disabled = true;
+      });
+      document.getElementById('traits').innerHTML = '';
+      document.getElementById('tricks').innerHTML = '';
+      document.getElementById('gameCard').style.display = 'none';
+      document.getElementById('log').innerHTML = '';
+      document.getElementById('chat').checked = c.chat !== false;
+      setNightUI(c);
+      document.getElementById('hint').textContent = '알은 배고프지도 지루하지도 않아요. 기다리거나 쓰다듬어 주세요.';
+      return;
+    }
+
+    document.getElementById('age').textContent = c.age + '살 · ' + c.title;
+
+    var pct = c.expNeed ? Math.min(100, Math.round(c.exp / c.expNeed * 100)) : 0;
+    document.getElementById('expBar').style.width = pct + '%';
+    document.getElementById('expText').textContent =
+      '다음 나이까지 ' + c.exp + ' / ' + c.expNeed +
+      '   ·   오늘 얻은 경험치 ' + c.dayExp + ' / ' + c.dayCap;
+
+    KEYS.forEach(function(k){ setStat(k, c[k]); });
+    drawTraits(c);
+    drawTricks(c);
+
+    document.getElementById('feed').disabled  = c.hunger >= 95;
+    document.getElementById('snack').disabled = c.hunger >= 99;
+    document.getElementById('walk').disabled  = c.energy < 30 || c.fun >= 98;
+    document.getElementById('train').disabled =
+      c.age < 3 || !c.nextTrick || c.energy < 25 || c.fun < 30;
+    document.getElementById('play').disabled  = c.fun >= 95 || c.energy < 15;
+    document.getElementById('clean').disabled = !c.poops || !c.poops.length;
+    var sleep = document.getElementById('sleep');
+    sleep.textContent = c.sleeping ? '깨우기' : '재우기';
+    sleep.disabled = !c.sleeping && c.energy >= 95;
+
+    document.getElementById('chat').checked = c.chat !== false;
+    setNightUI(c);
+    document.getElementById('hint').textContent = c.hint || '';
+  });
+
+  document.getElementById('chat').addEventListener('change', function(){
+    api.setChat(this.checked);
+  });
+  document.getElementById('night').addEventListener('change', function(){
+    api.setNight(this.checked);
+  });
+  document.getElementById('away').addEventListener('change', function(){
+    api.setAway(this.checked);
+  });
+  document.getElementById('zoom').addEventListener('change', function(){
+    api.setZoom(this.checked);
+  });
+
+  /* If the egg opened on someone you were not hoping for, this hands
+     back another one. Nothing is lost — the pet you have stays in the
+     roster — so it does not need a confirmation. */
+  document.getElementById('restart').addEventListener('click', function(){
+    if(!this.disabled) api.restart();
+  });
+
+  ['feed','snack','play','walk','train','sleep','clean'].forEach(function(k){
+    document.getElementById(k).addEventListener('click', function(){ api.act(k); });
+  });
+
+  api.ready();
+})();
+</script>
+</body></html>

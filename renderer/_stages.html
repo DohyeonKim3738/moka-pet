@@ -1,0 +1,55 @@
+<!doctype html><html><head><meta charset="utf-8"><title>growth stages</title>
+<link rel="stylesheet" href="sprite.css">
+<style>
+body{margin:0;background:#26262b;font:12px -apple-system,sans-serif;color:#bbb}
+h2{color:#ddd;font-size:13px;margin:14px 12px 4px}
+.row{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 12px}
+.cell{background:#1b1b1f;border-radius:8px;padding:6px;text-align:center}
+.cell svg{display:block;width:100%;height:auto}
+.n{margin-top:2px;font-size:11px}
+.on{background:#101014}
+</style></head><body>
+<div id="g"></div>
+<script src="pixel.js"></script><script src="gear.js"></script><script src="tint.js"></script><script src="species.js"></script>
+<script>
+function varsFor(sp){ return window.TINT.css({fur:sp.fur, belly:sp.belly}, sp); }
+
+/* care.js 의 STAGE_SCALE 을 미리보기용으로 옮겨 적은 값 */
+var PREVIEW_SCALE={egg:0.60,baby:0.64,child:0.76,teen:0.88,adult:1,elder:1,legend:1.06};
+var STAGES=[['egg','알'],['baby','아기'],['child','어린이'],['teen','청소년'],
+            ['adult','어른'],['elder','장로'],['전설'.length?'legend':'legend','전설']];
+/* ?build=slim,normal,plump,heavy 를 주면 단계 대신 체형을 나열한다 */
+var BUILDS=[['slim','날씬'],['normal','보통'],['plump','통통'],['heavy','포동포동']];
+var buildMode=new URLSearchParams(location.search).get('build');
+var g=document.getElementById('g');
+// query ?keys=dodam,capybara to narrow it down
+var want=(new URLSearchParams(location.search).get('keys')||'').split(',').filter(Boolean);
+window.SPECIES.list.forEach(function(sp){
+  if(want.length && want.indexOf(sp.key)<0) return;
+  var h=document.createElement('h2'); h.textContent=sp.name+' · '+sp.label; g.appendChild(h);
+  var row=document.createElement('div'); row.className='row';
+  var cells = buildMode ? BUILDS.map(function(b){ return [buildMode, b[1], b[0]]; }) : STAGES;
+  row.style.gridTemplateColumns = 'repeat(' + cells.length + ',1fr)';
+  cells.forEach(function(st){
+    var stage=st[0], build=st[2];
+    var art, scale=PREVIEW_SCALE[stage]||1;
+    if(stage==='egg') art=window.SPECIES.eggMarkup(false);
+    else art=window.SPECIES.at(sp.key, stage, build).markup();
+    // the app changes real size by resizing the window; here the view box
+    // stands in for that, so the stages can be compared side by side
+    var w=280/scale, hh=300/scale;
+    var vb=(-20-(w-280)/2)+' '+(-40-(hh-300))+' '+w+' '+hh;
+    var d=document.createElement('div'); d.className='cell';
+    // ?gear=hoodie 처럼 넘기면 각 단계에 소품을 입혀 정렬을 본다
+    d.innerHTML='<svg viewBox="'+vb+'" style="'+varsFor(sp)+'">'+art+'</svg>'+
+                '<div class="n">'+st[1]+'</div>';
+    row.appendChild(d);
+    var g=new URLSearchParams(location.search).get('gear');
+    if(g) g.split(',').forEach(function(item){
+      var el=d.querySelector('[data-gear="'+item+'"]');
+      if(el) el.style.display='';
+    });
+  });
+  g.appendChild(row);
+});
+</script></body></html>

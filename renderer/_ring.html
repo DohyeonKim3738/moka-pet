@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>돌보기</title>
+<style>
+html,body{margin:0;background:#D9D5CE;overflow:hidden;
+  -webkit-user-select:none;user-select:none;
+  font:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",sans-serif;}
+#bar{
+  display:flex;gap:5px;padding:6px;justify-content:center;
+}
+button{
+  appearance:none;cursor:pointer;
+  width:40px;height:40px;padding:0;
+  background:#FFFDF7;border:3px solid #3B322A;
+  box-shadow:3px 3px 0 rgba(59,50,42,.22);
+  font-size:11px;font-weight:700;color:#3B322A;line-height:1.1;
+}
+button:hover{background:#F6E2C0}
+button:active{box-shadow:1px 1px 0 rgba(59,50,42,.22);transform:translate(2px,2px)}
+button:disabled{opacity:.45;cursor:default}
+button .ic{display:block;font-size:15px}
+</style></head>
+<body>
+  <div id="bar">
+    <button id="feed"><span class="ic">🍚</span>밥</button>
+    <button id="play"><span class="ic">🎾</span>놀기</button>
+    <button id="sleep"><span class="ic">💤</span>잠</button>
+  </div>
+<script>
+window.ring = { onState:function(f){setTimeout(function(){f({hunger:18,fun:62,energy:88,sleeping:false});},0);},
+  act:function(){}, hover:function(){} };
+</script>
+<script>
+(function(){
+  "use strict";
+  var api = window.ring || { onState:function(){}, act:function(){}, hover:function(){} };
+  var sleepBtn = document.getElementById('sleep');
+
+  ['feed','play','sleep'].forEach(function(k){
+    document.getElementById(k).addEventListener('click', function(){ api.act(k); });
+  });
+
+  api.onState(function(c){
+    if(!c) return;
+    // the same button wakes the pet, so it has to say so
+    sleepBtn.innerHTML = c.sleeping
+      ? '<span class="ic">☀️</span>깨우기'
+      : '<span class="ic">💤</span>잠';
+    document.getElementById('feed').disabled  = c.hunger >= 95;
+    document.getElementById('play').disabled  = c.fun >= 95 || c.energy < 15;
+    sleepBtn.disabled = !c.sleeping && c.energy >= 95;
+  });
+
+  // keep the bar up while the pointer is on it, not just on the pet
+  document.addEventListener('mouseenter', function(){ api.hover(true); }, true);
+  document.addEventListener('mouseleave', function(){ api.hover(false); }, true);
+})();
+</script>
+</body></html>

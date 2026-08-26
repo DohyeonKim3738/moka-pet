@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>알림</title>
+<style>
+html,body{
+  margin:0;background:transparent;overflow:hidden;
+  -webkit-user-select:none;user-select:none;
+}
+#wrap{
+  padding:6px 8px 0;               /* room for the drop shadow and the tail */
+  font:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",sans-serif;
+}
+
+/* Square corners, a hard offset shadow and a stepped tail — the same
+   language as the sprite, so the bubble does not look like it came from
+   a different app than the pet. */
+.box{
+  background:#FFFDF7;color:#231A14;
+  border:3px solid #3B322A;
+  box-shadow:4px 4px 0 rgba(59,50,42,.22);
+  padding:8px 10px 9px;
+}
+.head{
+  font-size:11px;font-weight:700;letter-spacing:.02em;
+  color:#A8763F;margin-bottom:4px;
+}
+.line{
+  font-size:13px;font-weight:600;line-height:1.4;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.line + .line{font-weight:500;color:#5C5349;font-size:12px}
+
+/* the tail, built out of two stacked blocks so it reads as pixels */
+.tail{margin-left:22px}
+.tail i{display:block;background:#3B322A}
+.tail i:nth-child(1){width:15px;height:3px;margin-left:0}
+.tail i:nth-child(2){width:9px;height:3px;margin-left:3px}
+.tail i:nth-child(3){width:3px;height:3px;margin-left:6px}
+/* the cream fill that sits inside the dark outline of the tail */
+.tail{position:relative}
+.tail b{position:absolute;left:3px;top:0;width:9px;height:3px;background:#FFFDF7}
+.tail b.b2{left:6px;top:3px;width:3px;height:3px}
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div class="box">
+      <div class="head" id="head"></div>
+      <div id="lines"></div>
+    </div>
+    <div class="tail"><i></i><i></i><i></i><b></b><b class="b2"></b></div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  var head  = document.getElementById('head');
+  var lines = document.getElementById('lines');
+  var wrap  = document.getElementById('wrap');
+
+  window.bubble.onShow(function(n){
+    head.textContent = (n && n.head) || '';
+    lines.innerHTML = '';
+    ((n && n.lines) || []).forEach(function(t){
+      var d = document.createElement('div');
+      d.className = 'line';
+      d.textContent = t;
+      lines.appendChild(d);
+    });
+    // let layout settle, then tell main how tall to make the window
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        window.bubble.measured(Math.ceil(wrap.getBoundingClientRect().height) + 6);
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

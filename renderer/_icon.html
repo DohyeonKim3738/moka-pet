@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8"><title>icon</title>
+<style>
+  html,body{margin:0;background:transparent}
+  /* Apple's macOS grid: a 1024 canvas with the rounded square at 824,
+     inset 100 on every side. Matching it keeps the icon the same visual
+     size as every other app in the Dock. */
+  #canvas{position:relative;width:1024px;height:1024px}
+  #plate{
+    position:absolute;left:100px;top:100px;width:824px;height:824px;
+    border-radius:185px;
+    background:linear-gradient(170deg,#FFF3DC 0%,#F3DCB2 48%,#E4C28C 100%);
+    box-shadow:inset 0 -14px 30px rgba(150,110,60,.16),
+               inset 0 10px 22px rgba(255,255,255,.9),
+               0 16px 34px rgba(90,64,34,.20);
+    overflow:hidden;
+  }
+  /* a soft ground so the pet is standing on something */
+  #plate::after{
+    content:"";position:absolute;left:0;right:0;bottom:0;height:190px;
+    background:linear-gradient(180deg,rgba(196,150,92,0) 0%,rgba(196,150,92,.20) 100%);
+  }
+  #pet{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+       width:536px;height:704px;z-index:2}
+  #pet svg{display:block;width:100%;height:100%}
+  .eye-lid,.eye-shut,.glint-2{display:none}
+  #tear{opacity:0}
+</style></head>
+<body>
+<div id="canvas"><div id="plate"><div id="pet"></div></div></div>
+<script src="pixel.js"></script><script src="species.js"></script>
+<script>
+function parse(h){var m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[0,0,0];}
+function toHex(c){return '#'+c.map(function(v){v=Math.max(0,Math.min(255,Math.round(v)));return ('0'+v.toString(16)).slice(-2);}).join('');}
+function mix(a,b,t){var x=parse(a),y=parse(b);return toHex([0,1,2].map(function(i){return x[i]+(y[i]-x[i])*t;}));}
+var sp = window.SPECIES.get('capybara');
+var fur = sp.fur, belly = sp.belly;
+var vars='--fur:'+fur+';--fur-lt:'+mix(fur,'#ffffff',.20)+';--fur-dk:'+mix(fur,'#000000',.22)+
+  ';--belly:'+belly+';--belly-dk:'+mix(belly,'#000000',.14)+
+  ';--nose:'+mix(fur,'#241A14',.74)+';--line:'+mix(fur,'#231A14',.82)+';';
+document.getElementById('pet').innerHTML =
+  '<svg viewBox="30 -18 175 230" style="'+vars+'">'+sp.markup()+'</svg>';
+var prop=document.querySelector('#prop');
+if(prop){var k=prop.children;for(var i=0;i<k.length;i++){k[i].style.display=(k[i].getAttribute('data-prop')==='yuzu')?'':'none';}}
+</script>
+</body></html>

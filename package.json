@@ -1,0 +1,101 @@
+{
+  "name": "moka-pet",
+  "productName": "Moka Pet",
+  "version": "1.21.0",
+  "description": "책상 위 데스크톱 펫 — 커서를 따라 보는 카피바라·고양이·수달·게·시바견",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist": "electron-builder --mac --win"
+  },
+  "devDependencies": {
+    "electron": "^43.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.moka.pet",
+    "productName": "Moka Pet",
+    "files": [
+      "main.js",
+      "preload.js",
+      "settings-preload.js",
+      "bubble-preload.js",
+      "ring-preload.js",
+      "care-preload.js",
+      "agenda-preload.js",
+      "google-auth.js",
+      "calendar.js",
+      "care.js",
+      "chatter.js",
+      "updater.js",
+      "google-client.json",
+      "renderer/**",
+      "!renderer/_*.html",
+      "assets/**"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "mac": {
+      "category": "public.app-category.entertainment",
+      "icon": "assets/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "extendInfo": {
+        "LSUIElement": true
+      }
+    },
+    "dmg": {
+      "title": "Moka Pet"
+    },
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Moka Pet"
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "category": "Utility",
+      "target": [
+        "AppImage"
+      ]
+    }
+  }
+}

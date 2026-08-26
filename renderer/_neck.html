@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><title>neck seam</title>
+<style>
+body{margin:0;background:#EDE9E3;font:12px -apple-system,sans-serif;display:flex;gap:6px;padding:10px}
+.c{background:#fff;border-radius:8px;padding:6px;width:200px;text-align:center}
+svg{display:block;width:100%;height:auto}
+.eye-lid,.eye-shut,.glint-2{display:none}
+#tear{opacity:0}
+</style></head><body>
+<script src="pixel.js"></script><script src="species.js"></script>
+<script>
+function parse(h){var m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[0,0,0];}
+function toHex(c){return '#'+c.map(function(v){v=Math.max(0,Math.min(255,Math.round(v)));return ('0'+v.toString(16)).slice(-2);}).join('');}
+function mix(a,b,t){var x=parse(a),y=parse(b);return toHex([0,1,2].map(function(i){return x[i]+(y[i]-x[i])*t;}));}
+// worst case the rig can produce: gaze -1 dot and head-bob -1 dot, while
+// the body has bobbed the other way
+[[0,0],[-5,0],[-10,0],[-10,5]].forEach(function(off){
+  var sp=window.SPECIES.get('capybara');
+  var d=document.createElement('div');d.className='c';
+  var fur=sp.fur,belly=sp.belly;
+  var vars='--fur:'+fur+';--fur-lt:'+mix(fur,'#ffffff',.20)+';--fur-dk:'+mix(fur,'#000000',.22)+
+    ';--belly:'+belly+';--belly-dk:'+mix(belly,'#000000',.14)+
+    ';--nose:'+mix(fur,'#241A14',.74)+';--line:'+mix(fur,'#231A14',.82)+';';
+  d.innerHTML='<svg viewBox="-20 -40 280 300" style="'+vars+'">'+sp.markup()+'</svg><div>head '+off[0]+'px / body '+off[1]+'px</div>';
+  document.body.appendChild(d);
+  d.querySelector('#headGaze').setAttribute('transform','translate(0,'+off[0]+')');
+  d.querySelector('#bodyBreathe').setAttribute('transform','translate(0,'+off[1]+')');
+});
+</script></body></html>

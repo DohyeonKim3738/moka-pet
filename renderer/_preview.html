@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>sprite preview</title>
+<style>
+body{margin:0;background:#EDE9E3;font:13px -apple-system,sans-serif;color:#333}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:10px}
+.cell{background:#fff;border-radius:8px;padding:6px;text-align:center}
+.cell svg{display:block;width:100%;height:auto}
+.n{font-weight:600;margin-top:2px}
+.eye-lid,.eye-shut,.glint-2{display:none}
+#tear{opacity:0}
+cell svg{overflow:visible}
+</style></head>
+<body>
+<div class="grid" id="g"></div>
+<script src="pixel.js"></script>
+<script src="species.js"></script>
+<script>
+function parse(h){var m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[0,0,0];}
+function toHex(c){return '#'+c.map(function(v){v=Math.max(0,Math.min(255,Math.round(v)));return ('0'+v.toString(16)).slice(-2);}).join('');}
+function mix(a,b,t){var x=parse(a),y=parse(b);return toHex([0,1,2].map(function(i){return x[i]+(y[i]-x[i])*t;}));}
+var g=document.getElementById('g');
+window.SPECIES.list.forEach(function(sp){
+  var d=document.createElement('div');d.className='cell';
+  var fur=sp.fur,belly=sp.belly;
+  var T={lt:.20,dk:.22,bellyDk:.14,nose:.74,line:.82}, o=sp.tone||{};
+  function f(k){return o[k]===undefined?T[k]:o[k];}
+  var vars='--fur:'+fur+';--fur-lt:'+mix(fur,'#ffffff',f('lt'))+';--fur-dk:'+mix(fur,'#000000',f('dk'))+
+    ';--belly:'+belly+';--belly-dk:'+mix(belly,'#000000',f('bellyDk'))+
+    ';--nose:'+mix(fur,'#241A14',f('nose'))+';--line:'+mix(fur,'#231A14',f('line'))+';';
+  d.innerHTML='<svg viewBox="-20 -40 280 300" style="'+vars+'">'+sp.markup()+'</svg>'+
+    '<div class="n">'+sp.name+'</div><div>'+sp.label+'</div>';
+  g.appendChild(d);
+  // show the head-on-yuzu prop for the first one only
+  var prop=d.querySelector('#prop');
+  if(prop){var kids=prop.children;for(var i=0;i<kids.length;i++){kids[i].style.display=(kids[i].getAttribute('data-prop')===(sp.prop||'none'))?'':'none';}}
+});
+</script>
+</body></html>

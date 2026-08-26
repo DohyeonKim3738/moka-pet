@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>일정</title>
+<style>
+:root{
+  --card:#FFFDF7; --line:#3B322A; --text:#2A241E; --muted:#8B8074;
+  --accent:#B98052; --shadow:rgba(59,50,42,.22);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --card:#262320; --line:#0F0D0B; --text:#F0EDE7; --muted:#9A948B;
+         --accent:#D2A374; --shadow:rgba(0,0,0,.45); }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:transparent;overflow:hidden;
+  -webkit-user-select:none;user-select:none;
+  font:13px -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",sans-serif;
+  color:var(--text);}
+#list{display:flex;flex-direction:column;gap:8px;padding:10px}
+
+/* One card per reminder. Squared-off and outlined to match the pet's
+   pixel look rather than the OS chrome around it. */
+.item{
+  position:relative;background:var(--card);
+  border:3px solid var(--line);box-shadow:4px 4px 0 var(--shadow);
+  padding:11px 34px 12px 13px;
+}
+.item .when{font-size:11.5px;font-weight:700;color:var(--accent);
+  letter-spacing:.02em;margin-bottom:4px}
+.item .title{font-size:13.5px;font-weight:700;line-height:1.35;
+  word-break:break-word}
+.item .sub{margin-top:5px;font-size:11.5px;color:var(--muted);line-height:1.45}
+.item .sub div{margin-top:2px}
+.item .x{
+  position:absolute;top:6px;right:6px;
+  appearance:none;background:none;border:0;cursor:pointer;
+  width:22px;height:22px;padding:0;line-height:1;
+  color:var(--muted);font-size:15px;font-weight:700;
+}
+.item .x:hover{color:var(--text)}
+.item.gone{opacity:0;transform:translateX(8px);transition:opacity .16s,transform .16s}
+</style></head>
+<body>
+  <div id="list"></div>
+<script>
+(function(){
+  "use strict";
+  var api = window.agenda || { onItems:function(){}, dismiss:function(){}, measured:function(){} };
+  var list = document.getElementById('list');
+
+  function esc(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function render(items){
+    list.innerHTML = (items || []).map(function(it){
+      var sub = (it.lines || []).map(function(l){ return '<div>' + esc(l) + '</div>'; }).join('');
+      return '<div class="item" data-id="' + esc(it.id) + '">' +
+               '<button class="x" data-x="' + esc(it.id) + '" title="지우기">✕</button>' +
+               '<div class="when">' + esc(it.when) + '</div>' +
+               '<div class="title">' + esc(it.title) + '</div>' +
+               (sub ? '<div class="sub">' + sub + '</div>' : '') +
+             '</div>';
+    }).join('');
+
+    Array.prototype.forEach.call(list.querySelectorAll('[data-x]'), function(b){
+      b.addEventListener('click', function(){
+        var id = b.getAttribute('data-x');
+        var card = list.querySelector('.item[data-id="' + id + '"]');
+        if (card) card.classList.add('gone');
+        // let the card fade before the window resizes under it
+        setTimeout(function(){ api.dismiss(id); }, 160);
+      });
+    });
+
+    // the window is only as tall as what is in it
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        api.measured(Math.ceil(list.getBoundingClientRect().height) + 4);
+      });
+    });
+  }
+
+  api.onItems(render);
+})();
+</script>
+</body></html>

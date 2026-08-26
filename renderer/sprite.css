@@ -1,0 +1,20 @@
+/* ------------------------------------------------------------------
+ * sprite.css — the resting state of a pet drawing.
+ *
+ * P.build() always emits every optional part: both eye states, the
+ * sparkle glint, the tear. Which of them you see is a matter of CSS, and
+ * a window that draws a pet without these rules gets all of them at once
+ * — that is why the pets in the care window were crying.
+ *
+ * Any window that renders a sprite must load this. The pet window then
+ * layers its own rules on top to bring the parts back for blinking,
+ * sleeping, sleepy eyes and so on.
+ * ------------------------------------------------------------------ */
+
+/* drawn, but only when something is actually wrong */
+#tear { opacity: 0; }
+
+/* the alternate faces: closed eyes, heavy lids, the second glint */
+.eye-lid,
+.eye-shut,
+.glint-2 { display: none; }
