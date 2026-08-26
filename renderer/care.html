@@ -18,12 +18,18 @@ body{background:var(--bg);color:var(--text);display:flex;flex-direction:column;
 /* flex:0 0 auto or the header is squeezed by a tall page — which is what
    happened once the game, the roster and the family tree were added: the
    bar collapsed and the cards slid up under the traffic lights. */
+/* Only the header is draggable, and nothing else declares no-drag.
+   Chromium builds the draggable region by subtracting every no-drag
+   rectangle in the document from every drag one — so a card scrolled up
+   past the top of `main` still punched a hole through the title bar, and
+   the window could only be moved while scrolled to the very top. Cards
+   are not inside the drag region, so they never needed no-drag at all. */
 header{-webkit-app-region:drag;flex:0 0 auto;height:38px;min-height:38px;
   padding:0 16px 0 82px;display:flex;align-items:center;background:var(--bg)}
 header h1{font-size:13px;font-weight:600;color:var(--muted);margin:0}
 main{flex:1 1 auto;padding:4px 18px 18px;overflow:auto}
 
-.card{-webkit-app-region:no-drag;background:var(--card);border:1px solid var(--line);
+.card{background:var(--card);border:1px solid var(--line);
   border-radius:14px;padding:16px 18px}
 .card + .card{margin-top:10px}
 
@@ -46,7 +52,7 @@ main{flex:1 1 auto;padding:4px 18px 18px;overflow:auto}
 .stat.mid .bar i{background:#D89A3A}
 
 .acts{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
-.acts button{-webkit-app-region:no-drag;appearance:none;cursor:pointer;
+.acts button{appearance:none;cursor:pointer;
   border:1px solid var(--line);background:var(--bg);color:var(--text);
   font:inherit;font-size:13px;font-weight:600;padding:9px 14px;border-radius:10px}
 .acts button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
@@ -54,11 +60,11 @@ main{flex:1 1 auto;padding:4px 18px 18px;overflow:auto}
 
 .sub{display:flex;align-items:center;gap:9px}
 .sub span{font-size:13px}
-input[type=checkbox]{-webkit-app-region:no-drag;accent-color:var(--fill);width:15px;height:15px}
+input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
 
 .note{margin:12px 2px 0;font-size:12px;color:var(--muted);line-height:1.5}
 .tricks{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.tricks button{-webkit-app-region:no-drag;appearance:none;cursor:pointer;
+.tricks button{appearance:none;cursor:pointer;
   border:1px solid var(--line);background:var(--bg);color:var(--text);
   font:inherit;font-size:12.5px;padding:6px 14px;border-radius:999px}
 .tricks button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
@@ -86,7 +92,7 @@ input[type=checkbox]{-webkit-app-region:no-drag;accent-color:var(--fill);width:1
 .game .stage.left svg #bodyBreathe{transform:translateX(-5px)}
 .game .stage.right svg #bodyBreathe{transform:translateX(5px)}
 .game .pick{display:flex;flex-direction:column;gap:8px}
-.game .pick button{-webkit-app-region:no-drag;appearance:none;cursor:pointer;
+.game .pick button{appearance:none;cursor:pointer;
   border:1px solid var(--line);background:var(--bg);color:var(--text);
   font:inherit;font-size:13px;font-weight:600;padding:9px 18px;border-radius:10px}
 .game .pick button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
@@ -101,7 +107,7 @@ input[type=checkbox]{-webkit-app-region:no-drag;accent-color:var(--fill);width:1
 #family{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
 #family .ttl{font-size:12px;color:var(--muted);margin-bottom:8px}
 #family .mates{display:flex;flex-wrap:wrap;gap:8px}
-#family .mates button{-webkit-app-region:no-drag;appearance:none;cursor:pointer;
+#family .mates button{appearance:none;cursor:pointer;
   border:1px solid var(--line);background:var(--bg);color:var(--text);
   font:inherit;font-size:12.5px;padding:7px 12px;border-radius:999px}
 #family .mates button:hover{border-color:var(--accent);color:var(--accent)}

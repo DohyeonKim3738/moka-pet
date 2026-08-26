@@ -488,7 +488,19 @@ function applySize() {
   const y = zoomAnchor ? zoomAnchor.bottom - height
                        : b.y + (b.height - height);
   win.setBounds({ x, y, width, height });
+  // everything that hangs off the pet has to move with it. The bubble sits
+  // above the head, so when the pet grows for an action the head rises
+  // into it and the speech covers the very thing it grew to show.
   if (ringWin && !ringWin.isDestroyed() && ringWin.isVisible()) placeRing();
+  reflowBubble();
+  reflowAgenda();
+}
+
+/* keep the bubble above the head at whatever size the pet is now */
+function reflowBubble() {
+  if (bubbleWin && !bubbleWin.isDestroyed() && bubbleWin.isVisible()) {
+    placeBubble(lastBubbleH);
+  }
 }
 
 function pushConfig() {
