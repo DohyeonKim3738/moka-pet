@@ -437,18 +437,51 @@ function actPlay(c) {
   return Object.assign({ ok: true, verb: '놀기' }, award(c, Math.round(need / 100 * 18) + 4));
 }
 
-/* Showing off what it knows. Costs a little, gives a little, and pays no
-   experience — a trick you can repeat forever must not be a way to grow. */
+/* Showing off what it knows.
+ *
+ * This used to pay nothing at all, on the grounds that a trick you can
+ * repeat forever must not become a way to grow. That was true of the
+ * repeating; it was not a reason to make the whole thing worthless.
+ * Teaching ten tricks takes days and had one use — a milestone.
+ *
+ * So it pays, but badly per unit of effort, and it pays MORE the bigger
+ * the repertoire: a pet that knows one thing is doing a party piece, a pet
+ * that knows ten is putting on a show.
+ *
+ *   exp  = 2 + floor(known / 2)      1 trick -> 2,  10 tricks -> 7
+ *   fun  = 8 + known                 1 trick -> 9,  10 tricks -> 18
+ *
+ * It only pays while the pet is actually enjoying it — the same threshold
+ * play uses. Ask for a trick from an animal that is already delighted and
+ * it will do it, gladly, and learn nothing. That is what stops eighteen
+ * clicks in a row from being worth a day of care; the ceiling is the same
+ * clock as everything else, not a counter. */
 function actPerform(c, trick) {
   if (c.egg) return { ok: false, reason: '아직 알이에요' };
   if ((c.tricks || []).indexOf(trick) < 0) return { ok: false, reason: '아직 못 하는 재주예요' };
   if (c.energy < 12) return { ok: false, reason: '너무 지쳤어요' };
-  c.fun = clamp(c.fun + 8);
+  const known = (c.tricks || []).length;
+  const keen = c.fun < 95;
+  c.fun = clamp(c.fun + 8 + known);
   c.energy = clamp(c.energy - 5);
   c.sleeping = false;
   bump(c, 'love', 0.2);
   c.shows = (c.shows || 0) + 1;
-  return { ok: true, verb: '재주', trick, gain: 0, aged: false };
+  if (!keen) return { ok: true, verb: '재주', trick, gain: 0, aged: false, jaded: true };
+  return Object.assign({ ok: true, verb: '재주', trick },
+                       award(c, 2 + Math.floor(known / 2)));
+}
+
+/* what one performance is worth right now — the care window says so, or
+   nobody would know the repertoire mattered */
+function showValue(c) {
+  const known = ((c && c.tricks) || []).length;
+  return {
+    exp: 2 + Math.floor(known / 2),
+    fun: 8 + known,
+    known,
+    keen: !!c && c.fun < 95      // false: it will still perform, but learn nothing
+  };
 }
 
 /* ---------- the guessing game ----------
@@ -818,14 +851,15 @@ function view(c) {
     bornWith: (c.bornWith || []).slice(),
     canGame: canPlayGame(c).ok,
     gameBlocked: canPlayGame(c).reason || null,
-    trickTotal: TRICKS.length
+    trickTotal: TRICKS.length,
+    show: showValue(c)
   };
 }
 
 module.exports = {
   blank, normalize, advance, view, wants, mood, titleFor, needFor, ga, ro, eul,
   actFeed, actSnack, actPlay, actWalk, actSleep, actClean, actTrain, actPat, actGame,
-  actPerform,
+  actPerform, showValue,
   weightBand, baseWeight, personality, natureKey, natureNote, mods, nextTrick, TRICKS,
   hatchProgress, hatch, warmEgg, canWarm, reset, stageFor, stageScale, isNight,
   canMate, whyNotMate, inherit, inheritTricks, markMated, MATE_AGE, note,

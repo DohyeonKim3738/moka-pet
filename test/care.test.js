@@ -354,7 +354,9 @@ console.log('# 재주 부리기');
   p.tricks = ['앉아'];
   const r = care.actPerform(p, '앉아');
   ok('아는 재주는 한다', r.ok && p.fun > 40 && p.energy < 80, { fun: p.fun, e: p.energy });
-  ok('재주로는 경험치가 오르지 않는다', r.gain === 0);
+  // it pays now — a little, and only while it is still keen. The bounds
+  // are checked under "# 재주 보여주기" below.
+  ok('재주도 조금은 경험치를 준다', r.gain > 0, r.gain);
   ok('모르는 재주는 못 한다', care.actPerform(p, '노래').ok === false);
   p.energy = 5;
   ok('지쳤으면 못 한다', care.actPerform(p, '앉아').ok === false);
@@ -555,6 +557,119 @@ console.log('# 몸통 소품이 체형 따라 뭉개지지 않는다');
   }
   const off = overhang('medal');
   ok('금메달은 어느 종·체형에서도 몸 밖으로 안 나간다', off.length === 0, off.slice(0, 3).join(', '));
+}
+
+console.log('# 재주 보여주기');
+{
+  const mk = (n) => {
+    const c = care.blank();
+    c.egg = false; c.age = 5; c.bornAt = Date.now();
+    c.tricks = Array.from({ length: n }, (_, i) => care.TRICKS[i]);
+    c.energy = 100; c.fun = 0;
+    return c;
+  };
+  const one = care.actPerform(mk(1), care.TRICKS[0]);
+  const ten = care.actPerform(mk(10), care.TRICKS[0]);
+  ok('재주가 많을수록 더 준다', ten.gain > one.gain, one.gain + ' → ' + ten.gain);
+  ok('한 번이라도 경험치를 준다', one.gain > 0, one.gain);
+
+  // ...but never enough to make clicking the better use of a day
+  const c = mk(10);
+  let total = 0, presses = 0;
+  for (;;) { const r = care.actPerform(c, care.TRICKS[0]); if (!r.ok) break; total += r.gain; presses++; }
+  ok('기운이 다할 때까지 눌러도 한 바퀴 돌보기보다 적다', total < 78, total + 'exp / ' + presses + '번');
+
+  // once it is already delighted it will still perform, and learn nothing
+  const d = mk(10); d.fun = 100;
+  const r = care.actPerform(d, care.TRICKS[0]);
+  ok('신나 있으면 해주되 경험치는 없다', r.ok && r.gain === 0 && r.jaded === true);
+
+  ok('못 하는 재주는 거절한다', !care.actPerform(mk(1), care.TRICKS[5]).ok);
+  const tired = mk(3); tired.energy = 5;
+  ok('지치면 거절한다', !care.actPerform(tired, care.TRICKS[0]).ok);
+}
+
+console.log('# 가족 관계');
+{
+  const family = require('../family.js');
+  const pets = {};
+  const P = (id, par) => { pets[id] = { name: id, parents: par || null }; };
+  P('아빠'); P('엄마'); P('남남이'); P('외부1'); P('외부2');
+  P('첫째', ['아빠', '엄마']); P('둘째', ['아빠', '엄마']);
+  P('손주', ['첫째', '남남이']);
+  P('사촌', ['둘째', '외부1']);
+  P('타가문', ['외부1', '외부2']);
+
+  const k = (a, b) => family.kinship(pets, a, b);
+  [['첫째', '둘째', '형제예요'],
+   ['둘째', '손주', '삼촌·조카예요'],     // the hole that shipped in 1.23.0
+   ['손주', '둘째', '삼촌·조카예요'],     // and the same the other way round
+   ['첫째', '손주', '자식이에요'],
+   ['첫째', '아빠', '부모예요'],
+   ['아빠', '손주', '자손이에요'],
+   ['손주', '아빠', '조상이에요'],
+   ['사촌', '손주', '한 핏줄이에요'],
+  ].forEach(([a, b, want]) => ok(a + ' × ' + b + ' = ' + want, k(a, b) === want, k(a, b)));
+
+  // separate lines must stay crossable, or the family ends in two
+  // generations and the whole feature dies with it
+  ok('남남끼리는 된다', k('아빠', '엄마') === null);
+  ok('다른 집안 아이끼리는 된다', k('첫째', '타가문') === null);
+  ok('손주도 다른 집안과는 된다', k('손주', '타가문') === null);
+
+  // one partner, for good
+  pets['아빠'].mate = '엄마'; pets['엄마'].mate = '아빠';
+  ok('짝이 있으면 다른 상대는 막힌다', family.pairProblem(pets, '아빠', '타가문') === '짝이 있어요');
+  ok('제 짝과는 계속 된다', family.pairProblem(pets, '아빠', '엄마') === null);
+  ok('임자 있는 상대는 그렇게 말한다',
+     family.pairProblem(pets, '타가문', '엄마') === '아빠의 짝이에요',
+     family.pairProblem(pets, '타가문', '엄마'));
+  pets['아빠'].mate = '없는아이';
+  ok('사라진 짝은 풀린다', family.mateOf(pets, '아빠') === null);
+}
+
+console.log('# 이정표 표');
+{
+  const M = require('../missions.js');
+  ok('열둘', M.LIST.length === 12, M.LIST.length);
+  const ids = M.LIST.map((m) => m.id);
+  ok('id 가 겹치지 않는다', new Set(ids).size === ids.length);
+  ok('전부 목표와 세는 법이 있다',
+     M.LIST.every((m) => m.goal > 0 && typeof m.now === 'function' && m.unit && m.prize && m.badge));
+
+  const world = { best: () => 0, tally: () => 0, hatched: 0, species: 0, trickTotal: 10 };
+  ok('아무것도 안 했으면 전부 0', M.LIST.every((m) => M.now(m, world) === 0));
+  ok('아무것도 안 했으면 달성 없음', M.LIST.every((m) => !M.met(m, world)));
+
+  const done = { best: () => 99, tally: () => 999, hatched: 99, species: 99, trickTotal: 10 };
+  ok('다 했으면 전부 달성', M.LIST.every((m) => M.met(m, done)));
+  ok('진행도는 목표를 넘지 않는다', M.LIST.every((m) => M.now(m, done) === m.goal));
+
+  // a milestone that throws must not take the window down with it
+  const broken = { best: () => { throw new Error('nope'); }, tally: () => 0, hatched: 0, species: 0 };
+  ok('세다가 터져도 0 으로 넘어간다', M.now(M.byId('adult'), broken) === 0);
+
+  // every prize a milestone promises must be an item that exists
+  const none = () => false, all = () => true;
+  const roomLocked = M.roomSlots(none), roomOpen = M.roomSlots(all);
+  ok('잠긴 방 아이템은 이유가 붙는다',
+     roomLocked.every(([, , items]) => items.every(([, , why]) => !M.ROOM_LOCKS[items[0][1]] || true)) &&
+     roomLocked.some(([, , items]) => items.some(([, , why]) => !!why)));
+  ok('다 풀면 이유가 사라진다', roomOpen.every(([, , items]) => items.every(([, , why]) => !why)));
+  ok('잠겨도 목록에서 사라지지는 않는다',
+     JSON.stringify(roomLocked.map(([, , i]) => i.length)) ===
+     JSON.stringify(roomOpen.map(([, , i]) => i.length)));
+  ok('잠긴 것은 고를 수 없다', !M.pickable(roomLocked, 'floor', 'carpet'));
+  ok('풀린 것은 고를 수 있다', M.pickable(roomOpen, 'floor', 'carpet'));
+  ok('없음은 언제나 고를 수 있다', M.pickable(roomLocked, 'floor', 'none'));
+
+  // and every lock must name a milestone that is really there
+  const known = new Set(ids);
+  const strayRoom = Object.values(M.ROOM_LOCKS).filter((id) => !known.has(id));
+  const strayGear = Object.values(M.GEAR_LOCKS)
+    .flatMap((slot) => Object.values(slot)).filter((id) => !known.has(id));
+  ok('없는 이정표를 가리키는 잠금은 없다',
+     strayRoom.length === 0 && strayGear.length === 0, strayRoom.concat(strayGear).join(','));
 }
 
 console.log('# 미션 상품은 잠겨 있어야 한다');

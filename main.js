@@ -9,6 +9,8 @@ const calendar = require('./calendar');
 const updater = require('./updater');
 const care = require('./care');
 const chatter = require('./chatter');
+const missions = require('./missions');
+const family = require('./family');
 
 const IS_MAC = process.platform === 'darwin';
 const IS_WIN = process.platform === 'win32';
@@ -765,90 +767,12 @@ const GEAR_SLOTS = [
 /* The menu offers what this save has actually unlocked. Locked prizes are
    not listed at all — a greyed-out row you cannot explain is worse than
    an absence. */
-const GEAR_LOCKS = {
-  head: { cap: 'adult', crown: 'all9', beret: 'walk100', ribbon: 'three' },
-  hand: { bone: 'trick5', suitcase: 'walk20', broom: 'tidy', mic: 'showoff' },
-  body: { cape: 'legend', apron: 'chef', medal: 'alltricks' }
-};
-const GEAR_PRIZES = {
-  head: [['졸업 모자', 'cap'], ['황금 왕관', 'crown'],
-         ['탐험 모자', 'beret'], ['리본', 'ribbon']],
-  hand: [['뼈다귀', 'bone'], ['여행 가방', 'suitcase'],
-         ['빗자루', 'broom'], ['마이크', 'mic']],
-  body: [['별 망토', 'cape'], ['앞치마', 'apron'], ['금메달', 'medal']]
-};
-
-/* the milestone that hands something over, by its own name */
-function lockTitle(id) {
-  const m = MISSIONS.find((x) => x.id === id);
-  return m ? m.title : '';
-}
-
-/* Every item is listed, prizes included: hiding them meant you could not
-   tell there was anything to work towards. A prize you have not earned is
-   shown with the milestone that gives it and cannot be picked, which is
-   only readable now that the list shows how far along you are.
-   Rows are [label, key, lockedByTitle] — a third entry means locked. */
-function gearSlots() {
-  return GEAR_SLOTS.map(([slot, label, items]) => {
-    const prizes = (GEAR_PRIZES[slot] || []).map(([lb, key]) => {
-      const lock = (GEAR_LOCKS[slot] || {})[key];
-      return gearUnlocked(lock) ? [lb, key] : [lb, key, lockTitle(lock)];
-    });
-    return [slot, label, items.concat(prizes)];
-  });
-}
-
-/* wearable right now? */
-function gearPickable(slot, key) {
-  if (key === 'none') return true;
-  const row = gearSlots().find(([s]) => s === slot);
-  return !!row && row[2].some(([, k, locked]) => k === key && !locked);
-}
-
-const EYES = [['기본', 'basic'], ['졸림', 'sleepy'], ['반짝', 'sparkle']];
-const STATES = [
-  ['가만히', 'idle'], ['손 흔들기', 'waving'], ['점프', 'jumping'],
-  ['오른쪽 달리기', 'running-right'], ['왼쪽 달리기', 'running-left'],
-  ['작업 중', 'running'], ['기다리는 중', 'waiting'],
-  ['검토 중', 'review'], ['실패', 'failed']
-];
-
-function setPetField(key, value) {
-  currentPet()[key] = value;
-  pushConfig();
-}
-
-/* Room slots — must stay in step with renderer/room.js.
-   Three of the nine are milestone prizes; the rest are there from the
-   start, so a new save can still make the place look like somewhere. */
-const ROOM_LOCKS = { house: 'walk20', frame: 'family', rug: 'adult',
-                     grass: 'walk100', shelf: 'three', wall9: 'all9',
-                     carpet: 'legend', trophy: 'alltricks', jar: 'chef',
-                     disc: 'trick5', bucket: 'tidy', speaker: 'showoff' };
-const ROOM_SLOTS = [
-  ['back',  '뒤쪽 배경', [['창문', 'window'], ['강아지집', 'house'], ['가족 액자', 'frame'],
-                          ['선반', 'shelf'], ['사진 벽', 'wall9']]],
-  ['floor', '바닥',      [['방석', 'cushion'], ['타일 바닥', 'tiles'], ['러그', 'rug'],
-                          ['잔디 바닥', 'grass'], ['레드카펫', 'carpet']]],
-  ['left',  '왼쪽 소품', [['밥그릇', 'bowl'], ['물그릇', 'water'], ['뼈다귀', 'bone'], ['공', 'ball'],
-                          ['화분', 'plant'], ['인형', 'plush'],
-                          ['원반', 'disc'], ['양동이', 'bucket'], ['스피커', 'speaker'],
-                          ['트로피', 'trophy'], ['간식 통', 'jar']]],
-  ['right', '오른쪽 소품', [['밥그릇', 'bowl'], ['물그릇', 'water'], ['뼈다귀', 'bone'], ['공', 'ball'],
-                          ['화분', 'plant'], ['인형', 'plush'],
-                          ['원반', 'disc'], ['양동이', 'bucket'], ['스피커', 'speaker'],
-                          ['트로피', 'trophy'], ['간식 통', 'jar']]]
-];
-
-function roomSlots() {
-  return ROOM_SLOTS.map(([slot, label, items]) => [
-    slot, label, items.map(([lb, key]) => {
-      const lock = ROOM_LOCKS[key];
-      return gearUnlocked(lock) ? [lb, key] : [lb, key, lockTitle(lock)];
-    })
-  ]);
-}
+/* The prize tables live in missions.js, next to the milestones that hold
+   them back: an item losing its lock is silent — it just turns up in the
+   menu for free — so the two have to be read side by side. */
+function gearSlots() { return missions.gearSlots(GEAR_SLOTS, missionDone); }
+function gearPickable(slot, key) { return missions.pickable(gearSlots(), slot, key); }
+function roomSlots() { return missions.roomSlots(missionDone); }
 
 function setRoomSlot(slot, value) {
   // Only something this save has actually unlocked. A value that is not on
@@ -1259,83 +1183,19 @@ ipcMain.on('set-pct', (_e, pct) => {
  * noticed on the way past, and each hands over an accessory that cannot
  * be got any other way — the fifteen ordinary ones stay free.
  * ------------------------------------------------------------------ */
-/* Every milestone is a count against a target. Saying so in one place
-   means the list can show how far along you are — five of these are pure
-   tallies, and "모두 합쳐 100번" with no running total is a homework
-   assignment with no due date. `done` is derived, never written twice. */
-const MISSIONS = [
-  { id: 'adult',  title: '어른까지 키우기',      how: '한 마리를 8살까지',
-    prize: '졸업 모자 · 러그', badge: '보호자', unit: '살',
-    goal: 8, now: () => best((c) => c.age) },
-
-  { id: 'trick5', title: '재주 다섯 개 가르치기', how: '한 마리에게 5가지',
-    prize: '뼈다귀 · 원반', badge: '훈련사', unit: '가지',
-    goal: 5, now: () => best((c) => (c.tricks || []).length) },
-
-  { id: 'walk20', title: '산책 스무 번',          how: '모두 합쳐 20번',
-    prize: '여행 가방 · 강아지집', badge: '산책왕', unit: '번',
-    goal: 20, now: () => tally('walks') },
-
-  { id: 'family', title: '아이 낳기',            how: '어른 둘로 한 번',
-    prize: '가족 액자', badge: '가족', unit: '명',
-    goal: 1, now: () => tally('children') },
-
-  { id: 'all9',   title: '아홉 마리 모두 만나기', how: '알을 아홉 번 깨우기',
-    prize: '황금 왕관 · 사진 벽', badge: '아홉의 친구', unit: '마리',
-    goal: SPECIES.length,
-    now: () => SPECIES.filter((sp) => cfg.pets[sp.key] && !cfg.pets[sp.key].care.egg).length },
-
-  { id: 'legend', title: '전설까지 키우기',       how: '한 마리를 30살까지',
-    prize: '별 망토 · 레드카펫', badge: '전설의 주인', unit: '살',
-    goal: 30, now: () => best((c) => c.age) },
-
-  /* The second six are about the doing rather than the growing: they add
-     up across every pet in the save, so they keep counting whichever one
-     you are looking after today. */
-  { id: 'alltricks', title: '재주 열 개 모두 가르치기', how: '한 마리에게 10가지',
-    prize: '금메달 · 트로피', badge: '사범', unit: '가지',
-    goal: care.TRICKS.length, now: () => best((c) => (c.tricks || []).length) },
-
-  { id: 'chef',   title: '밥 백 번 차려주기',      how: '모두 합쳐 100번',
-    prize: '앞치마 · 간식 통', badge: '집밥', unit: '번',
-    goal: 100, now: () => tally('meals') },
-
-  { id: 'tidy',   title: '치우기 쉰 번',           how: '모두 합쳐 50번',
-    prize: '빗자루 · 양동이', badge: '깔끔이', unit: '번',
-    goal: 50, now: () => tally('cleans') },
-
-  { id: 'showoff', title: '재주 백 번 보여주기',   how: '모두 합쳐 100번',
-    prize: '마이크 · 스피커', badge: '무대체질', unit: '번',
-    goal: 100, now: () => tally('shows') },
-
-  { id: 'walk100', title: '산책 백 번',            how: '모두 합쳐 100번',
-    prize: '탐험 모자 · 잔디 바닥', badge: '탐험가', unit: '번',
-    goal: 100, now: () => tally('walks') },
-
-  { id: 'three',  title: '세 마리 함께 키우기',    how: '알 셋을 깨우기',
-    prize: '리본 · 선반', badge: '대가족', unit: '마리',
-    goal: 3, now: () => hatchedKeys().length }
-];
-
-/* how far along a milestone is, never above its target */
-function missionNow(m) {
-  let n = 0;
-  try { n = m.now() || 0; } catch (e) { n = 0; }
-  return Math.max(0, Math.min(m.goal, n));
+/* The twelve live in missions.js. This is the world they count against. */
+function missionWorld() {
+  return {
+    best: (pick) => hatchedKeys().reduce((n, k) => Math.max(n, pick(cfg.pets[k].care) || 0), 0),
+    tally: (field) => petIds().reduce((n, k) => n + (cfg.pets[k].care[field] || 0), 0),
+    hatched: hatchedKeys().length,
+    species: SPECIES.filter((sp) => cfg.pets[sp.key] && !cfg.pets[sp.key].care.egg).length,
+    trickTotal: care.TRICKS.length
+  };
 }
-
-function missionMet(m) { return missionNow(m) >= m.goal; }
-
-/* the best any one pet has managed — growth milestones are about a single
-   animal, not the household */
-function best(pick) {
-  return hatchedKeys().reduce((n, k) => Math.max(n, pick(cfg.pets[k].care) || 0), 0);
-}
-
-/* Milestones count the household, not the pet in front of you. */
-function tally(field) {
-  return petIds().reduce((n, k) => n + (cfg.pets[k].care[field] || 0), 0);
-}
+const MISSIONS = missions.LIST;
+function missionNow(m) { return missions.now(m, missionWorld()); }
+function missionMet(m) { return missions.met(m, missionWorld()); }
 
 function missionDone(id) { return (cfg.missions.done || []).indexOf(id) >= 0; }
 
@@ -1887,67 +1747,11 @@ function mixHex(a, b) {
   }).join('');
 }
 
-/* Everyone this one descends from and how far back, in generations.
-   Walking `parents` is the only record of who came from whom. */
-function ancestorDepths(id, depth, out) {
-  out = out || new Map();
-  if (depth === undefined) depth = 6;
-  if (depth <= 0) return out;
-  const p = (cfg.pets[id] && cfg.pets[id].parents) || [];
-  p.forEach((k) => {
-    if (!cfg.pets[k]) return;
-    const step = 7 - depth;                       // 1 = parent, 2 = grandparent
-    if (!out.has(k) || out.get(k) > step) out.set(k, step);
-    ancestorDepths(k, depth - 1, out);
-  });
-  return out;
-}
-
-/* Close family, and what kind. Age already keeps children out of this
-   entirely (MATE_AGE is 8); this is about who is whose.
-
-   The rule is any shared ancestor, which covers siblings, uncle and niece,
-   and cousins in one stroke. Two separate lines can still be crossed —
-   the children of one pair and the children of another share nobody — so
-   the family keeps going, it just has to go outward. */
-function kinship(aId, bId) {
-  if (aId === bId) return '자기 자신';
-  const A = ancestorDepths(aId), B = ancestorDepths(bId);
-
-  if (A.has(bId)) return A.get(bId) === 1 ? '부모예요' : '조상이에요';
-  if (B.has(aId)) return B.get(aId) === 1 ? '자식이에요' : '자손이에요';
-
-  let da = 0, db = 0;
-  A.forEach((depth, k) => {
-    if (!B.has(k)) return;
-    if (!da || depth + B.get(k) < da + db) { da = depth; db = B.get(k); }
-  });
-  if (!da) return null;
-  if (da === 1 && db === 1) return '형제예요';
-  if (Math.min(da, db) === 1) return '삼촌·조카예요';
-  return '한 핏줄이에요';
-}
-
-/* Who this one has already paired with. A pet keeps one partner: taking a
-   second would make the family tree a diagram of something else. If the
-   partner is no longer in the house the tie lapses. */
-function mateOf(id) {
-  const m = cfg.pets[id] && cfg.pets[id].mate;
-  return (m && cfg.pets[m]) ? m : null;
-}
-
-/* `aId` is the pet you are looking at, so the wording has to keep the two
-   sides apart: "아빠의 짝이에요" under someone else's name reads as though
-   THEY were taken, when in fact it is the pet in front of you that is. */
-function pairProblem(aId, bId) {
-  const kin = kinship(aId, bId);
-  if (kin) return kin;
-  const mb = mateOf(bId);
-  if (mb && mb !== aId) return cfg.pets[mb].name + '의 짝이에요';
-  const ma = mateOf(aId);
-  if (ma && ma !== bId) return '짝이 있어요';      // said in full above the list
-  return null;
-}
+/* The rules themselves live in family.js, where they can be tested
+   without launching anything. These wrap them in the pets map. */
+function kinship(aId, bId) { return family.kinship(cfg.pets, aId, bId); }
+function mateOf(id) { return family.mateOf(cfg.pets, id); }
+function pairProblem(aId, bId) { return family.pairProblem(cfg.pets, aId, bId); }
 
 function breed(aId, bId) {
   const a = cfg.pets[aId], b = cfg.pets[bId];
@@ -2030,7 +1834,7 @@ ipcMain.on('badge-set', (_e, id) => { setBadge(typeof id === 'string' ? id : '')
 
 ipcMain.on('care-home', (_e, on) => setHome(on));
 ipcMain.on('care-room', (_e, slot, value) => {
-  if (ROOM_SLOTS.some(([s]) => s === slot)) setRoomSlot(slot, typeof value === 'string' ? value : 'none');
+  if (missions.ROOM_SLOTS.some(([s]) => s === slot)) setRoomSlot(slot, typeof value === 'string' ? value : 'none');
 });
 
 ipcMain.on('care-game', (_e, won) => {
