@@ -1966,6 +1966,20 @@ function carePayload() {
   });
   // Listed with the reason rather than quietly missing, the same way a
   // prize you have not earned is still shown.
+  // Locked dishes stay on the list with what would open them, the same
+  // way an unearned prize does.
+  const mark = (list, field, word) => {
+    const n = cooked(field);
+    return (v[field] || []).map((f) => {
+      const need = (list.find((x) => x.id === f.id) || {}).after || 0;
+      return need <= n ? f
+        : Object.assign({}, f, { lock: word + ' ' + need + '번', at: n, need });
+    });
+  };
+  v.meals = mark(care.MEALS, 'meals', '밥');
+  v.snacks = mark(care.SNACKS, 'snacks', '간식');
+  v.cooked = { meals: cooked('meals'), snacks: cooked('snacks') };
+
   v.myMate = mateOf(cfg.species) ? cfg.pets[mateOf(cfg.species)].name : null;
   v.mates = hatchedKeys().filter((k) => k !== cfg.species).map((k) => ({
     id: k, name: cfg.pets[k].name,
@@ -2140,12 +2154,41 @@ function chatterTick() {
   if (!greeted) { cfg.chat.greetedOn = today; saveConfig(); }
 }
 
+/* How many times anyone in the house has been fed. Cooking is the owner's
+   skill, not the animal's, so a new pet does not send you back to plain
+   rice — it counts across every pet in the save. */
+function cooked(field) {
+  return petIds().reduce((n, k) => n + (cfg.pets[k].care[field] || 0), 0);
+}
+
+/* The dish to serve. Named dishes are checked against what has actually
+   been learned — the window disables the rest, but the rule has to hold
+   without it. With nothing named (the hover bar has one button) it serves
+   what the pet likes, out of what you know how to make. */
+function dishFor(list, field, kind) {
+  const known = care.learned(list, cooked(field));
+  if (kind) return known.some((f) => f.id === kind) ? kind : null;
+  const c = careState();
+  const fav = care.favourite(c, known);
+  if (fav) return fav.id;
+  const last = field === 'meals' ? c.lastMeal : c.lastSnack;
+  if (known.some((f) => f.id === last)) return last;
+  return known[0].id;
+}
+
 function doAct(what, kind) {
   const c = careState();
   careTick(false);
   let r;
-  if (what === 'feed') r = care.actFeed(c, kind);
-  else if (what === 'snack') r = care.actSnack(c, kind);
+  if (what === 'feed') {
+    const dish = dishFor(care.MEALS, 'meals', kind);
+    if (!dish) return;                         // a dish nobody has learned
+    r = care.actFeed(c, dish);
+  } else if (what === 'snack') {
+    const dish = dishFor(care.SNACKS, 'snacks', kind);
+    if (!dish) return;
+    r = care.actSnack(c, dish);
+  }
   else if (what === 'play') r = care.actPlay(c);
   else if (what === 'walk') r = care.actWalk(c);
   else if (what === 'sleep') r = care.actSleep(c);

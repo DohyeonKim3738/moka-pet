@@ -152,6 +152,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
 #menu button:disabled{opacity:.45;cursor:default}
 #menu button.fav{border-color:var(--accent);color:var(--accent);font-weight:700}
 #menu button.again{border-style:dashed;color:var(--muted)}
+#menu button.locked{border-style:dotted;color:var(--muted);opacity:.6}
 #menu .why{flex:0 0 100%;font-size:11px;color:var(--muted);margin:1px 2px 0}
 
 .tricks .worth{flex:0 0 100%;font-size:11px;color:var(--muted);margin:0 2px 2px}
@@ -261,8 +262,6 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       <div class="stat" id="s-clean"><span class="lb">청결</span><span class="bar"><i></i></span><span class="pc"></span></div>
 
       <div class="acts">
-        <button id="feed">밥 주기</button>
-        <button id="snack">간식</button>
         <button id="play">놀아주기</button>
         <button id="walk">산책</button>
         <button id="train">훈련</button>
@@ -622,26 +621,40 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     var host = document.getElementById('menu');
     if (c.egg) { host.innerHTML = ''; return; }
 
-    function course(label, list, chosen, fav, last, act, full){
+    function course(label, list, fav, last, act, full, done){
       var btns = list.map(function(f){
         var cls = [];
-        if (f.id === fav) cls.push('fav');
-        if (f.id === last) cls.push('again');
+        if (f.lock) cls.push('locked');
+        else {
+          if (f.id === fav) cls.push('fav');
+          if (f.id === last) cls.push('again');
+        }
         return '<button data-eat="' + act + ':' + f.id + '"' +
                (cls.length ? ' class="' + cls.join(' ') + '"' : '') +
-               (full ? ' disabled' : '') + '>' + f.label + '</button>';
+               ((full || f.lock) ? ' disabled' : '') + '>' +
+               f.label + (f.lock ? ' 🔒' : '') + '</button>';
       }).join('');
-      var why = full ? '배가 불러요'
-              : (fav ? ('입맛 · ' + (list.filter(function(f){ return f.id === fav; })[0] || {}).label +
-                        '   ·   같은 걸 연달아 주면 시들해져요')
-                     : '여러 가지를 먹여 보면 입맛이 생겨요');
+
+      // the next thing you would learn, and how far off it is
+      var next = null;
+      list.forEach(function(f){ if (f.lock && (!next || f.need < next.need)) next = f; });
+
+      var why;
+      if (full) why = '배가 불러요';
+      else if (fav) why = '입맛 · ' + (list.filter(function(f){ return f.id === fav; })[0] || {}).label +
+                          '   ·   같은 걸 연달아 주면 시들해져요';
+      else why = '여러 가지를 먹여 보면 입맛이 생겨요';
+      if (next) why += '   ·   ' + next.label + (next.neun || '은') + ' ' + label + ' ' +
+                       next.need + '번 (' + done + '/' + next.need + ')';
+
       return '<div class="course"><span class="lb">' + label + '</span>' + btns +
              '<span class="why">' + why + '</span></div>';
     }
 
+    var n = c.cooked || { meals: 0, snacks: 0 };
     host.innerHTML =
-      course('밥',   c.meals  || [], c.lastMeal,  c.favMeal,  c.lastMeal,  'feed',  c.hunger >= 95) +
-      course('간식', c.snacks || [], c.lastSnack, c.favSnack, c.lastSnack, 'snack', c.hunger >= 99);
+      course('밥',   c.meals  || [], c.favMeal,  c.lastMeal,  'feed',  c.hunger >= 95, n.meals) +
+      course('간식', c.snacks || [], c.favSnack, c.lastSnack, 'snack', c.hunger >= 99, n.snacks);
 
     Array.prototype.forEach.call(host.querySelectorAll('[data-eat]'), function(b){
       b.addEventListener('click', function(){
@@ -789,7 +802,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       document.getElementById('expText').textContent =
         '부화까지 ' + (c.hatch || 0) + '%   ·   쓰다듬으면 빨리 깨어나요';
       KEYS.forEach(function(k){ setStat(k, 0); });
-      ['feed','snack','play','walk','train','sleep','clean'].forEach(function(k){
+      ['play','walk','train','sleep','clean'].forEach(function(k){
         document.getElementById(k).disabled = true;
       });
       document.getElementById('traits').innerHTML = '';
@@ -854,7 +867,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     if(!this.disabled) api.restart();
   });
 
-  ['feed','snack','play','walk','train','sleep','clean'].forEach(function(k){
+  ['play','walk','train','sleep','clean'].forEach(function(k){
     document.getElementById(k).addEventListener('click', function(){ api.act(k); });
   });
 

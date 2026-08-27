@@ -615,6 +615,26 @@ console.log('# 밥과 간식의 종류');
     ok('종류를 안 고르면 입맛대로', care.actSnack(c).food === 'jerky');
   }
 
+  // learned by cooking, and it is the cook who learns — so it counts across
+  // the house, not per pet
+  {
+    ok('처음엔 한식과 쿠키뿐',
+       care.learned(care.MEALS, 0).length === 1 && care.learned(care.SNACKS, 0).length === 1);
+    ok('밥 8번이면 양식', care.learned(care.MEALS, 8).map((f) => f.id).join() === 'korean,western');
+    ok('밥 40번이면 전부', care.learned(care.MEALS, 40).length === care.MEALS.length);
+    ok('간식 45번이면 전부', care.learned(care.SNACKS, 45).length === care.SNACKS.length);
+    ok('열리는 순서가 겹치지 않는다',
+       new Set(care.MEALS.map((f) => f.after)).size === care.MEALS.length &&
+       new Set(care.SNACKS.map((f) => f.after)).size === care.SNACKS.length);
+    ok('안 배운 것은 못 만든다',
+       !care.canCook(care.MEALS, 'japanese', 10) && care.canCook(care.MEALS, 'japanese', 40));
+    ok('첫 요리는 언제나 만들 수 있다', care.canCook(care.MEALS, 'korean', 0));
+  }
+
+  console.log('# 은/는');
+  [['쿠키', '쿠키는'], ['양식', '양식은'], ['우유', '우유는'], ['아이스크림', '아이스크림은']]
+    .forEach(([w, want]) => ok(want, w + care.neun(w) === want, w + care.neun(w)));
+
   // and a save must not come back with a dish that does not exist
   {
     const bad = care.normalize({ egg: false, age: 4, diet: { 불닭: 9, korean: 2, cookie: -1 },

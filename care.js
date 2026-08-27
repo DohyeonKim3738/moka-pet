@@ -39,20 +39,29 @@ const POOP_SPOTS = [2, 44, 10, 36];  // dot columns beside the pet
  *
  * `weight` multiplies the base gain; `fun` is added on top.
  */
+/* `after` is how many times you have to have cooked before you know it.
+   You learn by cooking, not by being told — the same shape as everything
+   else here. It counts across the whole house, because the cook is you,
+   not the animal, so a new pet does not send you back to boiled rice. */
 const MEALS = [
-  { id: 'korean',   label: '한식', hunger: 45, weight: 1.0, fun: 0, note: '골고루' },
-  { id: 'western',  label: '양식', hunger: 52, weight: 1.5, fun: 2, note: '든든하게' },
-  { id: 'chinese',  label: '중식', hunger: 48, weight: 1.4, fun: 5, note: '기름지게' },
-  { id: 'japanese', label: '일식', hunger: 38, weight: 0.6, fun: 2, note: '가볍게' }
+  { id: 'korean',   label: '한식', hunger: 45, weight: 1.0, fun: 0, note: '골고루',   after: 0 },
+  { id: 'western',  label: '양식', hunger: 52, weight: 1.5, fun: 2, note: '든든하게', after: 8 },
+  { id: 'chinese',  label: '중식', hunger: 48, weight: 1.4, fun: 5, note: '기름지게', after: 20 },
+  { id: 'japanese', label: '일식', hunger: 38, weight: 0.6, fun: 2, note: '가볍게',   after: 40 }
 ];
 
 const SNACKS = [
-  { id: 'cookie',   label: '쿠키',     hunger: 18, weight: 1.0, fun: 22 },
-  { id: 'fruit',    label: '과일',     hunger: 14, weight: 0.4, fun: 15 },
-  { id: 'jerky',    label: '육포',     hunger: 22, weight: 1.2, fun: 20 },
-  { id: 'milk',     label: '우유',     hunger: 16, weight: 0.7, fun: 18 },
-  { id: 'icecream', label: '아이스크림', hunger: 16, weight: 1.6, fun: 28 }
+  { id: 'cookie',   label: '쿠키',     hunger: 18, weight: 1.0, fun: 22, after: 0 },
+  { id: 'fruit',    label: '과일',     hunger: 14, weight: 0.4, fun: 15, after: 5 },
+  { id: 'milk',     label: '우유',     hunger: 16, weight: 0.7, fun: 18, after: 12 },
+  { id: 'jerky',    label: '육포',     hunger: 22, weight: 1.2, fun: 20, after: 25 },
+  { id: 'icecream', label: '아이스크림', hunger: 16, weight: 1.6, fun: 28, after: 45 }
 ];
+
+/* what you know how to make, given how often you have made anything */
+function learned(list, cooked) {
+  return list.filter((f) => (f.after || 0) <= (cooked || 0));
+}
 
 function foodBy(list, id) { return list.find((f) => f.id === id) || null; }
 
@@ -63,6 +72,13 @@ function pickFood(c, list, id, prevKey) {
       || favourite(c, list)
       || foodBy(list, c && c[prevKey])
       || list[0];
+}
+
+/* Refuse a dish nobody has learned yet — the window disables it, but the
+   rules have to hold on their own. */
+function canCook(list, id, cooked) {
+  const f = foodBy(list, id);
+  return !f || (f.after || 0) <= (cooked || 0);
 }
 
 /* What it has been given most. A taste is not chosen, it is acquired —
@@ -257,6 +273,13 @@ function ga(word) {
 /* 으로/로. Bare '(으)로' in the middle of a sentence reads like a form
    field. No batchim takes 로, and so does a ㄹ batchim — 장로로, not
    장로으로. */
+/* 은/는. Same batchim rule as 이/가, different pair — "쿠키은" is as wrong
+   as "쿠키이", and "은(는)" in the middle of a sentence reads like a form. */
+function neun(word) {
+  const last = String(word || '').trim().slice(-1);
+  return hasBatchim(last) ? '은' : '는';
+}
+
 function ro(word) {
   const last = word.charAt(word.length - 1);
   const code = last.charCodeAt(0) - 0xAC00;
@@ -939,8 +962,8 @@ function view(c) {
     gameBlocked: canPlayGame(c).reason || null,
     trickTotal: TRICKS.length,
     show: showValue(c),
-    meals: MEALS.map((f) => ({ id: f.id, label: f.label, note: f.note })),
-    snacks: SNACKS.map((f) => ({ id: f.id, label: f.label })),
+    meals: MEALS.map((f) => ({ id: f.id, label: f.label, note: f.note, neun: neun(f.label) })),
+    snacks: SNACKS.map((f) => ({ id: f.id, label: f.label, neun: neun(f.label) })),
     lastMeal: c.lastMeal || null,
     lastSnack: c.lastSnack || null,
     favMeal: (favourite(c, MEALS) || {}).id || null,
@@ -950,9 +973,9 @@ function view(c) {
 }
 
 module.exports = {
-  blank, normalize, advance, view, wants, mood, titleFor, needFor, ga, ro, eul,
+  blank, normalize, advance, view, wants, mood, titleFor, needFor, ga, ro, eul, neun,
   actFeed, actSnack, actPlay, actWalk, actSleep, actClean, actTrain, actPat, actGame,
-  actPerform, showValue, MEALS, SNACKS, favourite,
+  actPerform, showValue, MEALS, SNACKS, favourite, learned, canCook,
   weightBand, baseWeight, personality, natureKey, natureNote, mods, nextTrick, TRICKS,
   hatchProgress, hatch, warmEgg, canWarm, reset, stageFor, stageScale, isNight,
   canMate, whyNotMate, inherit, inheritTricks, markMated, MATE_AGE, note,
