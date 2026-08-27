@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('care', {
   onState: (fn) => ipcRenderer.on('care-state', (_e, d) => fn(d)),
-  act: (what) => ipcRenderer.send('care-act', what),
+  act: (what, kind) => ipcRenderer.send('care-act', what, kind),
   ready: () => ipcRenderer.send('care-ready'),
   setChat: (on) => ipcRenderer.send('chat-set', !!on),
   restart: () => ipcRenderer.send('care-restart'),

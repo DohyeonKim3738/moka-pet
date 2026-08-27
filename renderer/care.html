@@ -141,6 +141,19 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
 #tree{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
 #tree .ttl{font-size:12px;color:var(--muted);margin-bottom:8px}
 #tree .line{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+/* what is on the plate — one row per course, with the note under it */
+#menu{margin-top:10px}
+#menu .course{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
+#menu .course .lb{flex:0 0 42px;color:var(--muted);font-size:11.5px}
+#menu button{appearance:none;cursor:pointer;font:inherit;font-size:12px;
+             padding:4px 10px;border-radius:999px;border:1px solid var(--line);
+             background:#fff;color:var(--text)}
+#menu button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+#menu button:disabled{opacity:.45;cursor:default}
+#menu button.fav{border-color:var(--accent);color:var(--accent);font-weight:700}
+#menu button.again{border-style:dashed;color:var(--muted)}
+#menu .why{flex:0 0 100%;font-size:11px;color:var(--muted);margin:1px 2px 0}
+
 .tricks .worth{flex:0 0 100%;font-size:11px;color:var(--muted);margin:0 2px 2px}
 #tree .who{display:flex;align-items:center;gap:5px;font-size:12px}
 #tree .who i{width:26px;height:26px;display:block;font-style:normal}
@@ -256,6 +269,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
         <button id="sleep">재우기</button>
         <button id="clean">치우기</button>
       </div>
+      <div class="menu" id="menu"></div>
       <div class="sub" style="margin-top:14px">
         <input type="checkbox" id="chat">
         <span>말 걸기</span>
@@ -601,6 +615,42 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     });
   }
 
+  /* The menu. A dish it has learned to love is marked, and the one it just
+     had is dimmed — the same dish twice running is only half as good, and
+     saying so is better than letting people wonder why the bar moved less. */
+  function drawMenu(c){
+    var host = document.getElementById('menu');
+    if (c.egg) { host.innerHTML = ''; return; }
+
+    function course(label, list, chosen, fav, last, act, full){
+      var btns = list.map(function(f){
+        var cls = [];
+        if (f.id === fav) cls.push('fav');
+        if (f.id === last) cls.push('again');
+        return '<button data-eat="' + act + ':' + f.id + '"' +
+               (cls.length ? ' class="' + cls.join(' ') + '"' : '') +
+               (full ? ' disabled' : '') + '>' + f.label + '</button>';
+      }).join('');
+      var why = full ? '배가 불러요'
+              : (fav ? ('입맛 · ' + (list.filter(function(f){ return f.id === fav; })[0] || {}).label +
+                        '   ·   같은 걸 연달아 주면 시들해져요')
+                     : '여러 가지를 먹여 보면 입맛이 생겨요');
+      return '<div class="course"><span class="lb">' + label + '</span>' + btns +
+             '<span class="why">' + why + '</span></div>';
+    }
+
+    host.innerHTML =
+      course('밥',   c.meals  || [], c.lastMeal,  c.favMeal,  c.lastMeal,  'feed',  c.hunger >= 95) +
+      course('간식', c.snacks || [], c.lastSnack, c.favSnack, c.lastSnack, 'snack', c.hunger >= 99);
+
+    Array.prototype.forEach.call(host.querySelectorAll('[data-eat]'), function(b){
+      b.addEventListener('click', function(){
+        var v = b.getAttribute('data-eat').split(':');
+        api.act(v[0], v[1]);
+      });
+    });
+  }
+
   /* Four slots, the same ones the tray menu offers, but here where you can
      see the pet you are decorating around. Locked items are simply absent —
      main.js filters them before they ever reach this window. */
@@ -721,6 +771,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     drawGame(c);
     drawTree(c.roster);
     drawFamily(c);
+    drawMenu(c);
     drawRoom(c);
     drawMissions(c);
     drawLog(c);

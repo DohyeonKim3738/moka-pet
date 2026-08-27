@@ -559,6 +559,71 @@ console.log('# 몸통 소품이 체형 따라 뭉개지지 않는다');
   ok('금메달은 어느 종·체형에서도 몸 밖으로 안 나간다', off.length === 0, off.slice(0, 3).join(', '));
 }
 
+console.log('# 밥과 간식의 종류');
+{
+  const hungry = () => {
+    const c = care.blank();
+    c.egg = false; c.age = 5; c.bornAt = Date.now();
+    c.hunger = 0; c.fun = 0; c.energy = 100;
+    return c;
+  };
+  ok('밥 네 가지', care.MEALS.length === 4);
+  ok('간식 다섯 가지', care.SNACKS.length === 5);
+  ok('id 가 겹치지 않는다',
+     new Set(care.MEALS.concat(care.SNACKS).map((f) => f.id)).size === 9);
+
+  // each dish has to actually differ, or the choice is decoration
+  const fills = care.MEALS.map((m) => m.hunger);
+  const gains = care.MEALS.map((m) => m.weight);
+  ok('밥마다 배부름이 다르다', new Set(fills).size === fills.length, fills.join(','));
+  ok('밥마다 살이 다르게 붙는다', new Set(gains).size === gains.length, gains.join(','));
+
+  // 일식 is the light one, 양식 the heavy one — the numbers should say so
+  const weigh = (id) => {
+    const c = hungry(); const before = c.weight;
+    care.actFeed(c, id);
+    return +(c.weight - before).toFixed(4);
+  };
+  ok('일식이 양식보다 덜 찐다', weigh('japanese') < weigh('western'),
+     weigh('japanese') + ' vs ' + weigh('western'));
+
+  // the same dish twice running is worth less fun, but fills the same
+  {
+    const c = hungry();
+    const a = care.actFeed(c, 'chinese'); const funA = c.fun;
+    c.hunger = 0; c.fun = 0;
+    const b = care.actFeed(c, 'chinese'); const funB = c.fun;
+    ok('연달아 같은 밥은 시들하다', b.again === true && funB < funA, funA + ' → ' + funB);
+    ok('그래도 배는 똑같이 부르다', a.ok && b.ok);
+  }
+
+  // a taste is acquired, not chosen
+  {
+    const c = hungry();
+    ok('처음엔 입맛이 없다', care.favourite(c, care.MEALS) === null);
+    for (let i = 0; i < 4; i++) { c.hunger = 0; care.actFeed(c, 'korean'); }
+    ok('많이 먹인 것이 입맛이 된다', (care.favourite(c, care.MEALS) || {}).id === 'korean');
+    c.hunger = 0; c.lastMeal = null;
+    ok('최애를 주면 좋아한다', care.actFeed(c, 'korean').loved === true);
+  }
+
+  // no dish named: give it what it likes
+  {
+    const c = hungry();
+    for (let i = 0; i < 4; i++) { c.hunger = 0; care.actSnack(c, 'jerky'); }
+    c.hunger = 0;
+    ok('종류를 안 고르면 입맛대로', care.actSnack(c).food === 'jerky');
+  }
+
+  // and a save must not come back with a dish that does not exist
+  {
+    const bad = care.normalize({ egg: false, age: 4, diet: { 불닭: 9, korean: 2, cookie: -1 },
+                                 lastMeal: '없는것', lastSnack: 'fruit' });
+    ok('없는 음식은 버린다', JSON.stringify(bad.diet) === '{"korean":2}', JSON.stringify(bad.diet));
+    ok('없는 마지막 메뉴는 비운다', bad.lastMeal === null && bad.lastSnack === 'fruit');
+  }
+}
+
 console.log('# 재주 보여주기');
 {
   const mk = (n) => {

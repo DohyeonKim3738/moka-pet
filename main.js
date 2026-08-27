@@ -2140,12 +2140,12 @@ function chatterTick() {
   if (!greeted) { cfg.chat.greetedOn = today; saveConfig(); }
 }
 
-function doAct(what) {
+function doAct(what, kind) {
   const c = careState();
   careTick(false);
   let r;
-  if (what === 'feed') r = care.actFeed(c);
-  else if (what === 'snack') r = care.actSnack(c);
+  if (what === 'feed') r = care.actFeed(c, kind);
+  else if (what === 'snack') r = care.actSnack(c, kind);
   else if (what === 'play') r = care.actPlay(c);
   else if (what === 'walk') r = care.actWalk(c);
   else if (what === 'sleep') r = care.actSleep(c);
@@ -2266,7 +2266,7 @@ function updateRing() {
 
 ipcMain.on('ring-hover', (_e, over) => { overRing = !!over; updateRing(); });
 ipcMain.on('care-open', () => openCare());
-ipcMain.on('care-act', (_e, what) => doAct(what));
+ipcMain.on('care-act', (_e, what, kind) => doAct(what, kind));
 ipcMain.on('care-clean', (_e, id) => {
   const c = careState();
   careTick(false);

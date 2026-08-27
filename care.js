@@ -30,6 +30,54 @@ const POOP_SPOTS = [2, 44, 10, 36];  // dot columns beside the pet
    it and how often you played shows up in its weight; what you spent
    your attention on shows up in its temperament. Both are plain running
    totals — no hidden dice — so the pet you get is the one you raised. */
+/* ---------- what is on the plate ----------
+ * Four meals and five snacks. They are not skins: each fills a different
+ * amount, sits differently on the ribs, and is enjoyed differently, so
+ * choosing is a choice. The numbers are small on purpose — nobody should
+ * need a spreadsheet, but a pet raised on 양식 ends up rounder than one
+ * raised on 일식, and that is the kind of mark this game keeps.
+ *
+ * `weight` multiplies the base gain; `fun` is added on top.
+ */
+const MEALS = [
+  { id: 'korean',   label: '한식', hunger: 45, weight: 1.0, fun: 0, note: '골고루' },
+  { id: 'western',  label: '양식', hunger: 52, weight: 1.5, fun: 2, note: '든든하게' },
+  { id: 'chinese',  label: '중식', hunger: 48, weight: 1.4, fun: 5, note: '기름지게' },
+  { id: 'japanese', label: '일식', hunger: 38, weight: 0.6, fun: 2, note: '가볍게' }
+];
+
+const SNACKS = [
+  { id: 'cookie',   label: '쿠키',     hunger: 18, weight: 1.0, fun: 22 },
+  { id: 'fruit',    label: '과일',     hunger: 14, weight: 0.4, fun: 15 },
+  { id: 'jerky',    label: '육포',     hunger: 22, weight: 1.2, fun: 20 },
+  { id: 'milk',     label: '우유',     hunger: 16, weight: 0.7, fun: 18 },
+  { id: 'icecream', label: '아이스크림', hunger: 16, weight: 1.6, fun: 28 }
+];
+
+function foodBy(list, id) { return list.find((f) => f.id === id) || null; }
+
+/* With no dish named — the hover bar has one button, not five — give it
+   what it likes, or failing that what it had last. */
+function pickFood(c, list, id, prevKey) {
+  return foodBy(list, id)
+      || favourite(c, list)
+      || foodBy(list, c && c[prevKey])
+      || list[0];
+}
+
+/* What it has been given most. A taste is not chosen, it is acquired —
+   the same way 성격 and 체형 are — so this is a record of how you fed it,
+   not a setting. Needs a few helpings before it means anything. */
+function favourite(c, list) {
+  const eaten = (c && c.diet) || {};
+  let best = null, most = 0;
+  list.forEach((f) => {
+    const n = eaten[f.id] || 0;
+    if (n > most) { most = n; best = f; }
+  });
+  return most >= 4 ? best : null;
+}
+
 const WEIGHT = {
   start: 4,              // at hatching
   perAge: 0.8,           // what a healthy pet of this age weighs
@@ -124,6 +172,7 @@ function blank() {
     // lifetime tallies. traits decay every day, so milestones cannot be
     // built on them — these only ever go up.
     meals: 0, snacks: 0, plays: 0, pats: 0, cleans: 0, naps: 0, shows: 0,
+    diet: {}, lastMeal: null, lastSnack: null,   // what it has been fed, and the last of each
     egg: true, eggAt: now, eggTaps: 0, lastWarm: 0,
     poops: [], sleeping: false,
     lastTick: now, lastPoop: now,
@@ -162,6 +211,19 @@ function normalize(c) {
   out.children = Number.isFinite(out.children) && out.children >= 0 ? out.children : 0;
   ['meals', 'snacks', 'plays', 'pats', 'cleans', 'naps', 'shows'].forEach((k) => {
     out[k] = Number.isFinite(out[k]) && out[k] >= 0 ? out[k] : 0;
+  });
+  // only dishes that exist, only counts that are numbers
+  const menu = MEALS.concat(SNACKS).map((f) => f.id);
+  const diet = {};
+  if (out.diet && typeof out.diet === 'object') {
+    menu.forEach((id) => {
+      const n = out.diet[id];
+      if (Number.isFinite(n) && n > 0) diet[id] = Math.floor(n);
+    });
+  }
+  out.diet = diet;
+  ['lastMeal', 'lastSnack'].forEach((k) => {
+    if (menu.indexOf(out[k]) < 0) out[k] = null;
   });
   out.log = Array.isArray(out.log)
     ? out.log.filter((e) => e && typeof e.text === 'string').slice(0, LOG_MAX)
@@ -396,31 +458,55 @@ function award(c, amount) {
 }
 
 /* Care that was needed pays; topping up a full bar does not. */
-function actFeed(c) {
+/* Two things make the choice worth making beyond the numbers: it lights
+   up for the thing it has come to love, and it is unimpressed by the same
+   dish twice running. Both land on 즐거움 only — being bored of the menu
+   should never mean going hungry. */
+function eat(c, food, prevKey) {
+  const again = c[prevKey] === food.id;
+  const loved = favourite(c, MEALS.concat(SNACKS)) === food;
+  let fun = food.fun + (loved ? 3 : 0);
+  if (again) fun = Math.round(fun * 0.5);
+  c[prevKey] = food.id;
+  if (!c.diet) c.diet = {};
+  c.diet[food.id] = (c.diet[food.id] || 0) + 1;
+  return { fun, again, loved };
+}
+
+function actFeed(c, kind) {
   if (c.egg) return { ok: false, reason: '아직 알이에요' };
   if (c.hunger >= 95) return { ok: false, reason: '배가 불러요' };
+  const meal = pickFood(c, MEALS, kind, 'lastMeal');
   const need = 100 - c.hunger;
-  c.hunger = clamp(c.hunger + 45);
+  const e = eat(c, meal, 'lastMeal');
+  c.hunger = clamp(c.hunger + meal.hunger);
+  c.fun = clamp(c.fun + e.fun);
   c.sleeping = false;
-  addWeight(c, WEIGHT.meal);
+  addWeight(c, WEIGHT.meal * meal.weight);
   c.meals = (c.meals || 0) + 1;
-  return Object.assign({ ok: true, verb: '밥' }, award(c, Math.round(need / 100 * 18) + 4));
+  return Object.assign({ ok: true, verb: '밥', food: meal.id, label: meal.label,
+                         again: e.again, loved: e.loved },
+                       award(c, Math.round(need / 100 * 18) + 4));
 }
 
 /* A snack is the shortcut: it cheers the pet up whether or not it was
    hungry, which is exactly why it costs two and a half times the weight
    of a meal and earns almost no experience. Feeding a pet nothing but
    treats is a way of raising it, and it will show. */
-function actSnack(c) {
+function actSnack(c, kind) {
   if (c.egg) return { ok: false, reason: '아직 알이에요' };
   if (c.hunger >= 99) return { ok: false, reason: '더는 못 먹어요' };
-  c.hunger = clamp(c.hunger + 18);
-  c.fun = clamp(c.fun + Math.round(22 * mods(c).snackFun));
+  const snack = pickFood(c, SNACKS, kind, 'lastSnack');
+  const e = eat(c, snack, 'lastSnack');
+  c.hunger = clamp(c.hunger + snack.hunger);
+  c.fun = clamp(c.fun + Math.round(e.fun * mods(c).snackFun));
   c.sleeping = false;
-  addWeight(c, WEIGHT.snack);
+  addWeight(c, WEIGHT.snack * snack.weight);
   bump(c, 'food', 1);
   c.snacks = (c.snacks || 0) + 1;
-  return Object.assign({ ok: true, verb: '간식' }, award(c, 3));
+  return Object.assign({ ok: true, verb: '간식', food: snack.id, label: snack.label,
+                         again: e.again, loved: e.loved },
+                       award(c, 3));
 }
 
 function actPlay(c) {
@@ -852,14 +938,21 @@ function view(c) {
     canGame: canPlayGame(c).ok,
     gameBlocked: canPlayGame(c).reason || null,
     trickTotal: TRICKS.length,
-    show: showValue(c)
+    show: showValue(c),
+    meals: MEALS.map((f) => ({ id: f.id, label: f.label, note: f.note })),
+    snacks: SNACKS.map((f) => ({ id: f.id, label: f.label })),
+    lastMeal: c.lastMeal || null,
+    lastSnack: c.lastSnack || null,
+    favMeal: (favourite(c, MEALS) || {}).id || null,
+    favSnack: (favourite(c, SNACKS) || {}).id || null,
+    diet: Object.assign({}, c.diet || {})
   };
 }
 
 module.exports = {
   blank, normalize, advance, view, wants, mood, titleFor, needFor, ga, ro, eul,
   actFeed, actSnack, actPlay, actWalk, actSleep, actClean, actTrain, actPat, actGame,
-  actPerform, showValue,
+  actPerform, showValue, MEALS, SNACKS, favourite,
   weightBand, baseWeight, personality, natureKey, natureNote, mods, nextTrick, TRICKS,
   hatchProgress, hatch, warmEgg, canWarm, reset, stageFor, stageScale, isNight,
   canMate, whyNotMate, inherit, inheritTricks, markMated, MATE_AGE, note,
