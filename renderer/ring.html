@@ -134,14 +134,21 @@ button .ic{display:block;font-size:15px}
     drawTray();
   });
 
-  // shut the tray when the pointer leaves, or it hangs about over the desk
-  document.addEventListener('mouseleave', function(){
+  /* Leaving the WINDOW, not leaving a button.
+   *
+   * These were on `document` with capture, so every mouseleave from any
+   * child counted: moving off the 밥 button — towards the very tray it had
+   * just opened — reported "pointer gone", which shut the tray and started
+   * the bar's hide timer. The dishes could be seen and never reached.
+   *
+   * mouseleave does not bubble, so a plain listener on the root element
+   * fires once, when the pointer actually leaves the page. */
+  var root = document.documentElement;
+  root.addEventListener('mouseenter', function(){ api.hover(true); });
+  root.addEventListener('mouseleave', function(){
+    api.hover(false);
     if (open) { open = null; drawTray(); }
-  }, true);
-
-  // keep the bar up while the pointer is on it, not just on the pet
-  document.addEventListener('mouseenter', function(){ api.hover(true); }, true);
-  document.addEventListener('mouseleave', function(){ api.hover(false); }, true);
+  });
 })();
 </script>
 </body></html>

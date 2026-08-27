@@ -638,13 +638,15 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       var next = null;
       list.forEach(function(f){ if (f.lock && (!next || f.need < next.need)) next = f; });
 
+      // 놀기는 먹는 것이 아니다 — 같은 규칙이라고 같은 말을 쓸 수는 없다
+      var play = act === 'play';
+      var taste = play ? '좋아하는 놀이' : '입맛';
       var why;
-      if (full) why = (act === 'play')
-        ? (c.fun >= 95 ? '지금은 신나 있어요' : '너무 지쳤어요')
-        : '배가 불러요';
-      else if (fav) why = '입맛 · ' + (list.filter(function(f){ return f.id === fav; })[0] || {}).label +
-                          '   ·   같은 걸 연달아 주면 시들해져요';
-      else why = '여러 가지를 먹여 보면 입맛이 생겨요';
+      if (full) why = play ? (c.fun >= 95 ? '지금은 신나 있어요' : '너무 지쳤어요')
+                           : '배가 불러요';
+      else if (fav) why = taste + ' · ' + (list.filter(function(f){ return f.id === fav; })[0] || {}).label +
+                          '   ·   같은 걸 연달아 ' + (play ? '하면' : '주면') + ' 시들해져요';
+      else why = '여러 가지를 ' + (play ? '해보면 좋아하는 놀이가' : '먹여 보면 입맛이') + ' 생겨요';
       if (next) why += '   ·   ' + next.label + (next.neun || '은') + ' ' + label + ' ' +
                        next.need + '번 (' + done + '/' + next.need + ')';
 
