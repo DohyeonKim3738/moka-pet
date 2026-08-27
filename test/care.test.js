@@ -924,10 +924,15 @@ console.log('# 뒷모습');
   ok('게는 눈이 없어 한 가지뿐', !window.SPECIES.get('crab').lieMarkup ||
      window.SPECIES.get('crab').lieMarkup() === window.SPECIES.get('crab').sleepMarkup());
 
-  // and only the two turning tricks are allowed to bring it up
+  // 뒷모습은 아무 데서나 켜면 안 된다 — 도는 재주 둘과, 원반을 물러 달려가는
+  // 놀이 하나. 셋뿐이고, 켜는 곳마다 눈을 끄는 짝이 반드시 있어야 한다.
   const css = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'index.html'), 'utf8');
   const shows = (css.match(/#backHead/g) || []).length;
-  ok('뒷모습을 켜는 곳은 빙글·구르기뿐', shows === 2, String(shows));
+  ok('뒷모습을 켜는 곳은 빙글·구르기·원반뿐', shows === 3, String(shows));
+  const backFrames = (css.match(/@keyframes (faceBack|rollBack|discBack)\b/g) || []).length;
+  const frontFrames = (css.match(/@keyframes (faceFront|rollFront|discFront)\b/g) || []).length;
+  ok('뒷모습을 켤 때마다 눈을 끄는 짝이 있다', backFrames === frontFrames,
+     backFrames + '/' + frontFrames);
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

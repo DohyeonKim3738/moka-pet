@@ -21,7 +21,7 @@ const ROOT = path.join(__dirname, '..');
 const R = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
 const out = process.argv[2] ||
-  path.join(process.env.HOME, 'Desktop', '모카펫-재주-해보기.html');
+  path.join(process.env.HOME, 'Desktop', '모카펫-동작-해보기.html');
 
 const indexHtml = R('renderer/index.html');
 /* sprite.css first: P.build() always emits every optional part, and that
@@ -33,6 +33,25 @@ const appCss = R('renderer/sprite.css') + '\n' +
 const libs = ['renderer/pixel.js', 'renderer/tint.js', 'renderer/gear.js',
               'renderer/species.js'].map(R).join('\n');
 
+/* The bowls, snacks and toys are lifted VERBATIM out of index.html rather
+   than retyped, so this page can never show a dish or a toy the app does
+   not actually draw. Anchors are the `var NAME = ` lines; each block runs
+   to the first line that closes it at two-space indent. */
+function lift(name, kind) {
+  const src = indexHtml;
+  const head = kind === 'fn' ? '  function ' + name + '(' : '  var ' + name + ' = ';
+  const at = src.indexOf(head);
+  if (at < 0) throw new Error('make-trick-demo: ' + name + ' 를 index.html 에서 못 찾음');
+  const close = kind === 'one' ? '];\n' : (kind === 'fn' ? '\n  }\n' : '\n  };\n');
+  const end = src.indexOf(close, at);
+  if (end < 0) throw new Error('make-trick-demo: ' + name + ' 의 끝을 못 찾음');
+  return src.slice(at, end + close.length);
+}
+const foodArt = ['BOWL_BASE', 'CRUMB'].map((n) => lift(n, 'one')).join('') +
+  lift('MEAL_ART', 'obj') + lift('SNACK_ART', 'obj') +
+  lift('BALL', 'one') + lift('PLAY_ART', 'obj') +
+  lift('bowlRows', 'fn');
+
 /* Kept in step with TRICK_POSE in main.js: same pose, same length. */
 const TRICKS = [
   ['앉아', 'sit', 2600], ['손', 'paw', 2400], ['엎드려', 'lie', 2800],
@@ -41,13 +60,24 @@ const TRICKS = [
   ['구르기', 'roll', 2000], ['노래', 'sing', 2800]
 ];
 const OTHER = [
-  ['훈련 중', 'training', 2400], ['밥', 'eating', 2600], ['간식', 'snacking', 1800],
-  ['놀기', 'playing', 2200], ['손 흔들기', 'waving', 2000], ['자기', 'sleeping', 4000]
+  ['훈련 중', 'training', 2400], ['손 흔들기', 'waving', 2000], ['자기', 'sleeping', 4000]
+];
+/* [버튼 이름, 동작, 종류, 길이] — main.js 의 doAct 와 같은 길이로 */
+const FOOD = [
+  ['한식', 'eating', 'korean', 2600], ['양식', 'eating', 'western', 2600],
+  ['중식', 'eating', 'chinese', 2600], ['일식', 'eating', 'japanese', 2600],
+  ['쿠키', 'snacking', 'cookie', 1800], ['과일', 'snacking', 'fruit', 1800],
+  ['우유', 'snacking', 'milk', 1800], ['육포', 'snacking', 'jerky', 1800],
+  ['아이스크림', 'snacking', 'icecream', 1800]
+];
+const GAMES = [
+  ['공놀이', 'playing', 'ball', 2600], ['숨바꼭질', 'playing', 'hide', 2600],
+  ['줄다리기', 'playing', 'tug', 2600], ['원반던지기', 'playing', 'disc', 2600]
 ];
 
 const page = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
-<title>모카 펫 — 재주 해보기</title>
+<title>모카 펫 — 동작 해보기</title>
 <style>
 ${appCss}
 
@@ -86,7 +116,7 @@ select{font:inherit;font-size:13px;padding:6px 10px;border-radius:10px;border:1p
 </style></head>
 <body>
 
-<h1>재주 해보기</h1>
+<h1>동작 해보기</h1>
 <p class="sub">앱에 들어 있는 것과 똑같은 동작입니다. 눌러 보세요.</p>
 
 <div class="stage">
@@ -108,6 +138,10 @@ select{font:inherit;font-size:13px;padding:6px 10px;border-radius:10px;border:1p
 <div class="pads">
   <div class="lab">재주 — 돌보기 창에서 가르치고 나면 쓸 수 있는 것들</div>
   <div class="pad" id="tricks"></div>
+  <div class="lab">밥과 간식 — 종류마다 그릇에 담기는 것이 다릅니다</div>
+  <div class="pad" id="food"></div>
+  <div class="lab">놀기 — 놀이마다 다른 물건이 나옵니다</div>
+  <div class="pad" id="games"></div>
   <div class="lab">그 밖의 동작</div>
   <div class="pad" id="other"></div>
 </div>
@@ -130,6 +164,10 @@ ${libs}
   "use strict";
   var TRICKS = ${JSON.stringify(TRICKS)};
   var OTHER  = ${JSON.stringify(OTHER)};
+  var FOOD   = ${JSON.stringify(FOOD)};
+  var GAMES  = ${JSON.stringify(GAMES)};
+
+${foodArt}
   var STAGES = [['아기','baby'],['어린이','child'],['청소년','teen'],
                 ['어른','adult'],['장로','elder'],['전설','legend']];
   var BUILDS = [['날씬','slim'],['보통','normal'],['통통','plump'],['포동포동','heavy']];
@@ -202,16 +240,42 @@ ${libs}
     });
   }
 
-  function fx(state){
+  function crumbs(){
+    var P = window.PIXEL;
+    return '<g class="fx-crumb">' + P.encode(CRUMB, 16, 34) + '</g>' +
+           '<g class="fx-crumb c2">' + P.encode(CRUMB, 31, 35) + '</g>';
+  }
+
+  function fx(state, kind){
     var P = window.PIXEL;
     if(state === 'training') return '<g class="fx-note">' + P.encode(NOTE, 34, 6) + '</g>';
     if(state === 'sing') return '<g class="fx-note">' + P.encode(NOTE, 34, 6) + '</g>' +
       '<g class="fx-note n2">' + P.encode(NOTE, 8, 9) + '</g>' +
       '<g class="fx-note n3">' + P.encode(NOTE, 38, 2) + '</g>';
+    if(state === 'eating')
+      return '<g class="fx-bowl">' + P.encode(bowlRows(kind || 'korean', 0), 17, 29) + '</g>';
+    if(state === 'snacking')
+      return '<g class="fx-treat">' + P.encode(SNACK_ART[kind] || SNACK_ART.cookie, 21, 29) + '</g>';
+    if(state === 'playing'){
+      var toy = PLAY_ART[kind] || PLAY_ART.ball;
+      return '<g class="' + toy.cls + '">' + P.encode(toy.rows, toy.x, toy.y) + '</g>';
+    }
     return '';
   }
 
-  function play(label, state, ms, btn){
+  /* 밥은 앱에서 세 단계로 줄어든다. 데모도 같은 시간표로 줄여 보여준다. */
+  var eatTimers = [];
+  function eatingSteps(kind){
+    eatTimers.forEach(clearTimeout); eatTimers = [];
+    [[750, 1], [1500, 2]].forEach(function(step){
+      eatTimers.push(setTimeout(function(){
+        actionFx.innerHTML =
+          '<g class="fx-bowl">' + window.PIXEL.encode(bowlRows(kind, step[1]), 17, 29) + '</g>' + crumbs();
+      }, step[0]));
+    });
+  }
+
+  function play(label, state, ms, btn, kind){
     if(timer) clearTimeout(timer);
     document.querySelectorAll('.pad button').forEach(function(b){ b.classList.remove('on'); });
     if(btn) btn.classList.add('on');
@@ -219,13 +283,20 @@ ${libs}
     current = 'idle';
     render();
     wrap.setAttribute('data-state', 'idle');
+    wrap.removeAttribute('data-play');
     actionFx.innerHTML = '';
     zzzLayer.innerHTML = '';
     void wrap.offsetWidth;
     current = state;
     render();
     wrap.setAttribute('data-state', state);
-    actionFx.innerHTML = fx(state);
+    // 앱과 같은 갈래: 놀이는 종류마다 몸짓이 다르다
+    if(state === 'playing') wrap.setAttribute('data-play', kind || 'ball');
+    else wrap.removeAttribute('data-play');
+    actionFx.innerHTML = fx(state, kind);
+    eatTimers.forEach(clearTimeout); eatTimers = [];
+    if(state === 'eating') eatingSteps(kind || 'korean');
+    if(state === 'snacking') eatTimers.push(setTimeout(function(){ actionFx.innerHTML = crumbs(); }, 900));
     // the Z's are what tell 자기 apart from 엎드려 — the drawing is the same
     zzzLayer.innerHTML = (state === 'sleeping')
       ? '<g class="fx-z">'    + window.PIXEL.encode(Z, 32, 7) + '</g>' +
@@ -237,6 +308,8 @@ ${libs}
       current = 'idle';
       render();
       wrap.setAttribute('data-state', 'idle');
+      wrap.removeAttribute('data-play');
+      eatTimers.forEach(clearTimeout); eatTimers = [];
       actionFx.innerHTML = '';
       zzzLayer.innerHTML = '';
       now.textContent = '가만히';
@@ -245,15 +318,18 @@ ${libs}
     }, ms);
   }
 
-  function pad(host, rows){
+  function pad(host, rows, kinded){
     rows.forEach(function(r){
       var b = document.createElement('button');
       b.textContent = r[0];
-      b.addEventListener('click', function(){ play(r[0], r[1], r[2], b); });
+      var state = r[1], kind = kinded ? r[2] : null, ms = kinded ? r[3] : r[2];
+      b.addEventListener('click', function(){ play(r[0], state, ms, b, kind); });
       host.appendChild(b);
     });
   }
   pad(document.getElementById('tricks'), TRICKS);
+  pad(document.getElementById('food'), FOOD, true);
+  pad(document.getElementById('games'), GAMES, true);
   pad(document.getElementById('other'), OTHER);
 
   [who, stage, build].forEach(function(s){ s.addEventListener('change', render); });

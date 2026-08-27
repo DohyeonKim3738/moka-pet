@@ -1720,10 +1720,12 @@ function careState() { return currentPet().care; }
    some code path forcing a pose without checking, leaving the animation
    awake while care.sleeping stayed true underneath. `force` is for the
    care actions themselves, which legitimately wake the pet first. */
-function setPose(state, force) {
+/* `kind` is which dish or which game — the bowl on screen should hold what
+   was actually served. */
+function setPose(state, force, kind) {
   if (!win || win.isDestroyed()) return;
   if (!force && careState().sleeping) return;
-  win.webContents.send('state', state);
+  win.webContents.send('state', state, kind || null);
 }
 
 function careTick(push) {
@@ -2241,7 +2243,7 @@ function doAct(what, kind) {
     const holdMs = what === 'feed' ? 2200 : what === 'snack' ? 1600
                  : what === 'play' ? 2600 : what === 'walk' ? 4200
                  : what === 'train' ? 2400 : 1600;
-    setPose(anim, true);              // feeding/playing wakes it on purpose
+    setPose(anim, true, r.food || r.play || null);   // wakes it on purpose
     zoomForAction(holdMs);
     setTimeout(() => setPose('idle'), holdMs);
   }

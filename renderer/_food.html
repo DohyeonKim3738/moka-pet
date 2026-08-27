@@ -1,0 +1,61 @@
+<!doctype html><html><head><meta charset="utf-8"><title>밥과 간식</title>
+<link rel="stylesheet" href="sprite.css">
+<style>
+body{margin:0;background:#EDE9E3;font:13px -apple-system,sans-serif;color:#2b2b2b;padding:16px}
+h2{font-size:13px;margin:14px 2px 6px;color:#555}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.grid.s{grid-template-columns:repeat(5,1fr)}
+.cell{background:#fff;border-radius:10px;padding:6px;text-align:center}
+.cell svg{display:block;width:100%;height:auto}
+.n{font-size:11.5px;margin-top:2px}
+.t{font-size:10.5px;color:#999}
+</style></head><body>
+<h2>밥 — 갓 담았을 때 / 반쯤 / 다 먹고</h2><div class="grid" id="m"></div>
+<h2>간식</h2><div class="grid s" id="s"></div>
+<h2>놀이</h2><div class="grid" id="p"></div>
+<script>
+['pixel.js','gear.js','tint.js','room.js','species.js'].forEach(function(f){
+  document.write('<script src="'+f+'?'+Date.now()+Math.random()+'"><\/script>');
+});
+</script>
+<script>
+fetch('index.html?'+Math.random(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(src){
+  // index.html 의 정의를 그대로 끌어와 쓴다
+  var BOWL_BASE = ['KWWWWWWWWWK','.KKKKKKKKK.','..KKKKKKK..'];
+  var MEAL_ART = JSON.parse(src.match(/var MEAL_ART = (\{[\s\S]*?\});/)[1]
+      .replace(/(\w+):/g,'"$1":').replace(/'/g,'"'));
+  var SNACK_ART = JSON.parse(src.match(/var SNACK_ART = (\{[\s\S]*?\});/)[1]
+      .replace(/(\w+):/g,'"$1":').replace(/'/g,'"'));
+  function bowlRows(kind, level){
+    var m=MEAL_ART[kind], f=m.food, a=m.a, b=m.b, top;
+    if(level===0) top=['..'+f+f+a+f+a+f+f+'..','.'+f+b+f+f+a+f+f+b+f+'.','K'+f+f+f+a+f+b+f+f+f+'K'];
+    else if(level===1) top=['...........','...K'+f+a+f+f+'K..','KK'+f+f+b+f+a+f+f+'KK'];
+    else top=['...........','...........','KKKKKKKKKKK'];
+    return top.concat(BOWL_BASE);
+  }
+  var P=window.PIXEL, sp=window.SPECIES.get('capybara');
+  var tint=window.TINT.css({fur:sp.fur,belly:sp.belly},sp);
+  var LB={korean:'한식',western:'양식',chinese:'중식',japanese:'일식',
+          cookie:'쿠키',fruit:'과일',jerky:'육포',milk:'우유',icecream:'아이스크림',
+          ball:'공놀이',hide:'숨바꼭질',tug:'줄다리기',disc:'원반던지기'};
+  var BALL = eval(src.match(/var BALL = (\[[^\]]*\]);/)[1]);
+  var PLAY_ART = eval('(' + src.match(/var PLAY_ART = (\{[\s\S]*?\n  \});/)[1] + ')');
+  Object.keys(MEAL_ART).forEach(function(k){
+    var svg='<svg viewBox="78 138 150 60" style="'+tint+'">';
+    [0,1,2].forEach(function(l,i){ svg += '<g transform="translate('+(i*45)+',0)">'+P.encode(bowlRows(k,l),17,29)+'</g>'; });
+    document.getElementById('m').insertAdjacentHTML('beforeend',
+      '<div class="cell">'+svg+'</svg><div class="n">'+LB[k]+'</div><div class="t">'+MEAL_ART[k].tag+'</div></div>');
+  });
+  Object.keys(SNACK_ART).forEach(function(k){
+    document.getElementById('s').insertAdjacentHTML('beforeend',
+      '<div class="cell"><svg viewBox="100 140 42 45" style="'+tint+'">'+P.encode(SNACK_ART[k],21,29)+
+      '</svg><div class="n">'+LB[k]+'</div></div>');
+  });
+  ['ball','hide','tug','disc'].forEach(function(k){
+    var t=PLAY_ART[k];
+    document.getElementById('p').insertAdjacentHTML('beforeend',
+      '<div class="cell"><svg viewBox="145 140 78 50" style="'+tint+'">'+P.encode(t.rows,t.x,t.y)+
+      '</svg><div class="n">'+LB[k]+'</div></div>');
+  });
+});
+</script></body></html>

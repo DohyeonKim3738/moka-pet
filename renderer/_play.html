@@ -1,0 +1,19 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>놀기 네 가지</title>
+<style>
+body{background:#EDE9E3;margin:0;font:13px -apple-system,"Apple SD Gothic Neo",sans-serif;color:#2b2b2b;padding:12px}
+h2{font-size:12px;color:#666;margin:10px 2px 5px}
+.row{display:flex;gap:6px}
+.cell{background:#fff;border-radius:10px;overflow:hidden;width:150px}
+iframe{width:150px;height:170px;border:0;display:block}
+.t{font-size:10px;color:#aaa;text-align:center;padding:2px 0 4px}
+</style></head><body><div id="all"></div>
+<script>
+[['공놀이','ball'],['숨바꼭질','hide'],['줄다리기','tug'],['원반던지기','disc']].forEach(function(g){
+  var h='<h2>'+g[0]+'</h2><div class="row">';
+  [0.1,0.3,0.5,0.7,0.9].forEach(function(f){
+    h+='<div class="cell"><iframe src="_play1.html?g='+g[1]+'&f='+f+'"></iframe><div class="t">'+
+       Math.round(f*100)+'%</div></div>';
+  });
+  document.getElementById('all').insertAdjacentHTML('beforeend', h+'</div>');
+});
+</script></body></html>

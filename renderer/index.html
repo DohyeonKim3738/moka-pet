@@ -342,6 +342,81 @@ html,body{
   75%{transform:translateX(-5px)}
 }
 
+/* ---- 놀이마다 다른 몸짓 ----------------------------------------------
+   물건만 바꾸면 넷이 다 똑같아 보인다. 공은 쫓고(chase, 위 기본값),
+   숨바꼭질은 상자 뒤로 숨었다 고개만 내밀고, 줄다리기는 뒤로 버티며
+   당기고, 원반은 높이 뛰어 받는다. data-play 가 붙은 규칙이라
+   기본 playing 규칙보다 우선한다. */
+
+/* 숨바꼭질 — 쏙 내려갔다가 빼꼼 */
+#wrap[data-state="playing"][data-play="hide"] #petAnim{animation:duckHide 2s steps(4,end) infinite}
+#wrap[data-state="playing"][data-play="hide"] #headAnim{animation:peekLook 2s steps(4,end) infinite}
+#wrap[data-state="playing"][data-play="hide"] #armR,
+#wrap[data-state="playing"][data-play="hide"] #armL{animation:none}
+#wrap[data-state="playing"][data-play="hide"] #tail{animation:tailIdle .8s ease-in-out infinite}
+@keyframes duckHide{
+  0%{transform:translate(0,0)}
+  25%{transform:translate(0,30px)}
+  50%{transform:translate(0,30px)}
+  75%{transform:translate(0,10px)}
+  100%{transform:translate(0,0)}
+}
+@keyframes peekLook{
+  0%{transform:translateX(0)}
+  50%{transform:translateX(-5px)}
+  75%{transform:translateX(5px)}
+  100%{transform:translateX(0)}
+}
+
+/* 줄다리기 — 뛰지 않는다. 뒤로 버티며 당겼다 끌려갔다 */
+#wrap[data-state="playing"][data-play="tug"] #petAnim{animation:tugPull .7s steps(2,end) infinite}
+#wrap[data-state="playing"][data-play="tug"] #headAnim{animation:none}
+#wrap[data-state="playing"][data-play="tug"] #armR,
+#wrap[data-state="playing"][data-play="tug"] #armL{animation:tugArm .7s ease-in-out infinite}
+@keyframes tugPull{
+  0%{transform:translate(0,0)}
+  50%{transform:translate(-20px,0)}
+  100%{transform:translate(0,0)}
+}
+@keyframes tugArm{0%,100%{transform:rotate(-45deg)}50%{transform:rotate(-15deg)}}
+
+/* 원반던지기 — 던지면 등을 보이며 멀어졌다가(작아지고), 물고 돌아온다(커지고).
+   2.6초 한 바퀴 = main.js 의 놀기 유지 시간과 같다. 발밑을 기준으로 줄여야
+   공중에 뜨지 않고 멀어지는 것처럼 보인다. */
+#wrap[data-state="playing"][data-play="disc"] #petAnim{
+  transform-origin:120px 225px;
+  animation:discFetch 2.6s steps(2,end) infinite}
+#wrap[data-state="playing"][data-play="disc"] #headAnim{animation:none}
+#wrap[data-state="playing"][data-play="disc"] #armR,
+#wrap[data-state="playing"][data-play="disc"] #armL{animation:pounceArm .28s ease-in-out infinite}
+#wrap[data-state="playing"][data-play="disc"] #pawL{animation:step .28s steps(2,end) infinite}
+#wrap[data-state="playing"][data-play="disc"] #pawR{animation:step .28s steps(2,end) infinite reverse}
+/* 등을 보이는 구간에서만 뒷모습 레이어를 켜고 눈은 끈다 — 빙글과 같은 방식 */
+#wrap[data-state="playing"][data-play="disc"] #backHead,
+#wrap[data-state="playing"][data-play="disc"] #backBody{animation:discBack 2.6s linear infinite}
+#wrap[data-state="playing"][data-play="disc"] #eyeL,
+#wrap[data-state="playing"][data-play="disc"] #eyeR,
+#wrap[data-state="playing"][data-play="disc"] #slot-eyes{animation:discFront 2.6s linear infinite}
+@keyframes discFetch{
+  0%,6%{transform:translate(0,0) scale(1)}
+  20%{transform:translate(-25px,-15px) scale(.85)}
+  35%{transform:translate(-50px,-30px) scale(.7)}
+  48%,56%{transform:translate(-70px,-40px) scale(.6)}
+  70%{transform:translate(-50px,-30px) scale(.7)}
+  85%{transform:translate(-25px,-15px) scale(.85)}
+  100%{transform:translate(0,0) scale(1)}
+}
+@keyframes discBack{  0%,6%{opacity:0} 8%,50%{opacity:1} 54%,100%{opacity:0} }
+@keyframes discFront{ 0%,6%{opacity:1} 8%,50%{opacity:0} 54%,100%{opacity:1} }
+/* 원반도 같이 날아갔다 돌아온다 — 멀어질 때 같이 작아지지 않으면 혼자 크게 남는다 */
+@keyframes discThrow{
+  0%{transform:translate(0,0) scale(1)}
+  25%{transform:translate(-45px,-35px) scale(.8)}
+  45%,55%{transform:translate(-72px,-48px) scale(.6)}
+  75%{transform:translate(-45px,-35px) scale(.8)}
+  100%{transform:translate(0,0) scale(1)}
+}
+
 /* Walking: it paces out and back, legs going, tail up. Not the same as
    playing — no ball, and the whole body travels. */
 #wrap[data-state="walking"] #petAnim{animation:stroll 4.2s ease-in-out 1 forwards}
@@ -605,6 +680,18 @@ html,body{
 .fx-bowl{animation:bowlBob .5s steps(2,end) infinite}
 .fx-treat{animation:bowlBob .3s steps(2,end) infinite}
 .fx-ball{animation:ballBounce 1.3s steps(6,end) infinite}
+.fx-disc{transform-box:fill-box;transform-origin:center;animation:discThrow 2.6s steps(2,end) infinite}
+.fx-rope{animation:ropeTug .7s steps(2,end) infinite}
+.fx-box{animation:boxWiggle 1s steps(3,end) infinite}
+@keyframes ropeTug{
+  0%{transform:translate(0,0)}
+  50%{transform:translate(-20px,0)}
+  100%{transform:translate(0,0)}
+}
+@keyframes boxWiggle{
+  0%,100%{transform:translate(0,0)}
+  50%{transform:translate(0,-5px)}
+}
 .fx-note{transform-box:fill-box;transform-origin:center;animation:zFloat 1.4s ease-out infinite}
 .fx-note.n2{animation-delay:.45s}
 .fx-note.n3{animation-delay:.9s}
@@ -793,13 +880,110 @@ html,body{
   /* Three fill levels. The food is two rows deep and the bowl a dot wider
      than it used to be: at a small pet size a one-dot layer of rice is
      barely a pixel tall and emptying it looked like nothing happening. */
-  var BOWLS = [
-    ['..YYYYYYY..', '.YYYYYYYYY.', 'KYYYYYYYYYK', 'KWWWWWWWWWK', '.KKKKKKKKK.', '..KKKKKKK..'],
-    ['...........', '...KYYYYK..', 'KKYYYYYYYKK', 'KWWWWWWWWWK', '.KKKKKKKKK.', '..KKKKKKK..'],
-    ['...........', '...........', 'KKKKKKKKKKK', 'KWWWWWWWWWK', '.KKKKKKKKK.', '..KKKKKKK..']
-  ];
-  var TREAT = ['.SSS.', 'SyYyS', 'SYyYS', '.SSS.'];
+  /* One bowl, four fillings. The dish you chose should be the dish in the
+     bowl — otherwise picking 일식 over 양식 is a number in a menu and
+     nothing you ever see. Same silhouette so it still reads as a bowl at
+     any size; only what is heaped in it changes. */
+  var BOWL_BASE = ['KWWWWWWWWWK', '.KKKKKKKKK.', '..KKKKKKK..'];
+  /* Two accent colours each, not one: 한식 and 일식 are both pale rice, and
+     a single red dot against a single pink dot is not a difference you can
+     see in a bowl eleven dots wide. */
+  var MEAL_ART = {
+    korean:   { food: 'W', a: 'R', b: 'G', tag: '흰밥에 김치' },
+    western:  { food: 'S', a: 'Y', b: 'G', tag: '고기에 감자' },
+    chinese:  { food: 'Y', a: 'R', b: 'S', tag: '면에 고추' },
+    japanese: { food: 'H', a: 'P', b: 'K', tag: '연어 초밥' }
+  };
+
+  /* level 0 heaped, 1 half gone, 2 licked clean */
+  function bowlRows(kind, level){
+    var m = MEAL_ART[kind] || MEAL_ART.korean;
+    var f = m.food, a = m.a, b = m.b;
+    var top;
+    if (level === 0) {
+      top = ['..' + f + f + a + f + a + f + f + '..',
+             '.' + f + b + f + f + a + f + f + b + f + '.',
+             'K' + f + f + f + a + f + b + f + f + f + 'K'];
+    } else if (level === 1) {
+      top = ['...........',
+             '...K' + f + a + f + f + 'K..',
+             'KK' + f + f + b + f + a + f + f + 'KK'];
+    } else {
+      top = ['...........', '...........', 'KKKKKKKKKKK'];
+    }
+    return top.concat(BOWL_BASE);
+  }
+
+  /* Snacks are small enough to be drawn outright, and different enough
+     that a recoloured lump would not do. */
+  /* Only characters in PIXEL.PALETTE draw. 's' is not one of them, and a
+     jerky strip written with it came out full of holes. */
+  var SNACK_ART = {
+    cookie:   ['.SSSS.',
+               'SyyyyS',
+               'SyKyyS',
+               'SyyKyS',
+               'SKyyyS',
+               '.SSSS.'],
+    fruit:    ['...GG.',
+               '..GG..',
+               '.RRRR.',
+               'RRRRRR',
+               'RRRRRR',
+               '.RRRR.'],
+    jerky:    ['.SSSS.',
+               'SSSSSS',
+               'SKSSKS',
+               'SSSSSS',
+               'SKSSKS',
+               '.SSSS.'],
+    milk:     ['..KK..',
+               '..KK..',
+               '.KKKK.',
+               'KHHHHK',
+               'KHHHHK',
+               'KHCCHK',
+               '.KKKK.'],
+    icecream: ['.PPPP.',
+               'PppPPP',
+               'PPPPPP',
+               '.PPPP.',
+               '.SSSS.',
+               '..SS..',
+               '...S..']
+  };
   var BALL = ['..KKK..', '.KWWWK.', 'KWWKWWK', 'KWKKKWK', 'KWWKWWK', '.KWWWK.', '..KKK..'];
+  // 놀이마다 다른 물건. cls 는 움직임(공은 튀고, 원반은 날고, 줄은 당기고, 상자는 들썩)
+  var PLAY_ART = {
+    // 공은 바닥에서 튄다 — 배 위에 겹치면 물고 있는 것처럼 보인다
+    ball: { cls: 'fx-ball', x: 40, y: 38, rows: BALL },
+    // 원반은 날아가는 것이라 공중에 둔다
+    disc: { cls: 'fx-disc', x: 34, y: 30, rows: [
+      '..KKKKK..',
+      '.KCCCCCK.',
+      'KCCWWWCCK',
+      '.KCCCCCK.',
+      '..KKKKK..'] },
+    // 줄은 앞발 높이에서 화면 밖(상대편)까지 길게 이어진다
+    tug:  { cls: 'fx-rope', x: 31, y: 34, rows: [
+      '.KK.KK.KK.KK.KK.',
+      'KyyKyyKyyKyyKyyK',
+      'KYYKYYKYYKYYKYYK',
+      '.KK.KK.KK.KK.KK.'] },
+    // 숨는 상자는 펫보다 커야 숨은 것으로 보인다 — 다리와 배를 가리고
+    // 고개만 위로 내민다
+    hide: { cls: 'fx-box',  x: 12, y: 36, rows: [
+      'KKKKKKKKKKKKKKKKKKKKKKKK',
+      'KSSSSSSSSSSSSSSSSSSSSSSK',
+      'KSSSSSSSSSSSSSSSSSSSSSSK',
+      'KKKKKKKKKKKKKKKKKKKKKKKK',
+      'KSSSSSSSSSSSSSSSSSSSSSSK',
+      'KSSSSSSSSSSSSSSSSSSSSSSK',
+      'KSSSSSSSSSSSSSSSSSSSSSSK',
+      'KKKKKKKKKKKKKKKKKKKKKKKK',
+      'KSSSSSSSSSSSSSSSSSSSSSSK',
+      'KKKKKKKKKKKKKKKKKKKKKKKK'] }
+  };
   var CRUMB = ['y'];
   var NOTE = ['..K.', '..K.', 'KKK.', 'KK..'];
   var Z = ['KKKK', '..K.', '.K..', 'KKKK'];
@@ -811,22 +995,24 @@ html,body{
   }
   function later(fn, ms){ fxTimers.push(setTimeout(fn, ms)); }
 
-  function bowlAt(level){
-    return '<g class="fx-bowl">' + window.PIXEL.encode(BOWLS[level], 17, 29) + '</g>';
+  function bowlAt(level, kind){
+    return '<g class="fx-bowl">' + window.PIXEL.encode(bowlRows(kind, level), 17, 29) + '</g>';
   }
 
-  function setActionFx(state){
+  function setActionFx(state, kind){
     clearFxTimers();
     if(state === 'eating'){
       // full bowl, then emptier, then licked clean — with a crumb or two
-      actionFx.innerHTML = bowlAt(0);
-      later(function(){ actionFx.innerHTML = bowlAt(1) + crumbs(); }, 750);
-      later(function(){ actionFx.innerHTML = bowlAt(2) + crumbs(); }, 1500);
+      actionFx.innerHTML = bowlAt(0, kind);
+      later(function(){ actionFx.innerHTML = bowlAt(1, kind) + crumbs(); }, 750);
+      later(function(){ actionFx.innerHTML = bowlAt(2, kind) + crumbs(); }, 1500);
     } else if(state === 'snacking'){
-      actionFx.innerHTML = '<g class="fx-treat">' + window.PIXEL.encode(TREAT, 21, 30) + '</g>';
+      var art = SNACK_ART[kind] || SNACK_ART.cookie;
+      actionFx.innerHTML = '<g class="fx-treat">' + window.PIXEL.encode(art, 21, 29) + '</g>';
       later(function(){ actionFx.innerHTML = crumbs(); }, 900);
     } else if(state === 'playing'){
-      actionFx.innerHTML = '<g class="fx-ball">' + window.PIXEL.encode(BALL, 33, 32) + '</g>';
+      var toy = PLAY_ART[kind] || PLAY_ART.ball;
+      actionFx.innerHTML = '<g class="' + toy.cls + '">' + window.PIXEL.encode(toy.rows, toy.x, toy.y) + '</g>';
     } else if(state === 'training'){
       actionFx.innerHTML = '<g class="fx-note">' + window.PIXEL.encode(NOTE, 34, 6) + '</g>';
     } else if(state === 'sing'){
@@ -852,9 +1038,12 @@ html,body{
     '<g class="fx-z z3">' + window.PIXEL.encode(Z, 40, -1) + '</g>';
 
   window.pet.onConfig(applyConfig);
-  window.pet.onState(function(s){
+  window.pet.onState(function(s, kind){
     wrap.setAttribute('data-state', s);
-    setActionFx(s);
+    // 놀이마다 몸짓이 다르다 — CSS 가 data-play 로 갈라 본다
+    if(s === 'playing') wrap.setAttribute('data-play', kind || 'ball');
+    else wrap.removeAttribute('data-play');
+    setActionFx(s, kind);
     // 엎드려 borrows the lying-down drawing — the same one used for sleep,
     // minus the Z's, which only appear for data-state="sleeping"
     if(s === 'lie') applySleepSprite(true, 'lie');

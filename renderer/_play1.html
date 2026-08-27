@@ -1,0 +1,44 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>한 컷</title>
+<link rel="stylesheet" href="sprite.css">
+<style>html,body{margin:0;background:#fff}svg{width:100%;height:auto;display:block}</style>
+</head><body>
+<div id="wrap" data-state="playing" data-eyes="basic" style="--gx:0;--gy:0;--hx:0px;--hy:0px">
+  <svg id="s" viewBox="-20 -70 280 350"><g id="petRoot"><g id="petAnim"></g></g>
+  <g id="actionFx" shape-rendering="crispEdges"></g></svg>
+</div>
+<script>
+['pixel.js','gear.js','tint.js','species.js'].forEach(function(f){
+  document.write('<script src="'+f+'?'+Date.now()+Math.random()+'"><\/script>');
+});
+</script>
+<script>
+var q = new URLSearchParams(location.search);
+var kind = q.get('g') || 'ball', at = parseFloat(q.get('f') || '0.3');
+fetch('index.html?'+Math.random(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(src){
+  var st=document.createElement('style');
+  st.textContent=src.slice(src.indexOf('<style>')+7, src.indexOf('</style>'));
+  document.head.appendChild(st);
+  var BALL = eval(src.match(/var BALL = (\[[^\]]*\]);/)[1]);
+  var PLAY_ART = eval('(' + src.match(/var PLAY_ART = (\{[\s\S]*?\n  \});/)[1] + ')');
+  var sp = window.SPECIES.at('capybara','adult','normal'), svg=document.getElementById('s');
+  document.getElementById('petAnim').innerHTML = sp.markup();
+  var w=document.getElementById('wrap');
+  w.setAttribute('data-species', sp.key); w.setAttribute('data-play', kind);
+  var t=window.TINT.vars({fur:sp.fur,belly:sp.belly},sp);
+  Object.keys(t).forEach(function(k){ svg.style.setProperty(k,t[k]); });
+  var o=sp.origins||{}; Object.keys(o).forEach(function(k){ svg.style.setProperty('--o-'+k,o[k]); });
+  var toy=PLAY_ART[kind];
+  document.getElementById('actionFx').innerHTML =
+    '<g class="'+toy.cls+'">'+window.PIXEL.encode(toy.rows,toy.x,toy.y)+'</g>';
+  requestAnimationFrame(function(){
+    document.querySelectorAll('#wrap *').forEach(function(el){
+      var cs=getComputedStyle(el);
+      if(cs.animationName==='none') return;
+      var dur=parseFloat(cs.animationDuration)||1;
+      el.style.animationDelay=(-dur*at)+'s';
+      el.style.animationPlayState='paused';
+    });
+    document.title='ready';
+  });
+});
+</script></body></html>

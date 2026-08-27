@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('pet', {
   onGaze:   (fn) => ipcRenderer.on('gaze',   (_e, d) => fn(d)),
-  onState:  (fn) => ipcRenderer.on('state',  (_e, d) => fn(d)),
+  onState:  (fn) => ipcRenderer.on('state',  (_e, d, kind) => fn(d, kind)),
   onConfig: (fn) => ipcRenderer.on('config', (_e, d) => fn(d)),
   dragStart: () => ipcRenderer.send('drag-start'),
   dragEnd:   () => ipcRenderer.send('drag-end'),
