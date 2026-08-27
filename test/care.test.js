@@ -796,6 +796,150 @@ console.log('# 가족 관계');
   ok('사라진 짝은 풀린다', family.mateOf(pets, '아빠') === null);
 }
 
+console.log('# 다음 칭호까지 얼마나');
+{
+  const c = care.blank(); care.hatch(c);
+  c.age = 15; c.exp = 500;
+
+  // 재 본 날이 없으면 아는 척하지 않는다
+  const v0 = care.view(c);
+  ok('기록이 없으면 날짜를 지어내지 않는다',
+     v0.toNext && v0.toNext.days === null && v0.toNext.pace === null,
+     JSON.stringify(v0.toNext));
+  ok('남은 경험치는 그래도 안다', v0.toNext.exp > 0, String(v0.toNext.exp));
+  ok('다음 칭호는 원로', v0.toNext.title === '원로' && v0.toNext.from === 20);
+
+  c.expDays = [200, 100, 150];
+  const v = care.view(c);
+  ok('속도는 다 채운 날들의 평균', v.toNext.pace === 150, String(v.toNext.pace));
+  ok('남은 날은 남은 경험치 나누기 속도',
+     v.toNext.days === Math.ceil(v.toNext.exp / 150), String(v.toNext.days));
+
+  // 남은 경험치는 나이 하나씩이 아니라 칭호까지 전부 더한 값이다
+  const step = care.needFor(15) + care.needFor(16) + care.needFor(17) +
+               care.needFor(18) + care.needFor(19) - 500;
+  ok('15살에서 20살까지를 다 더한다', v.toNext.exp === step,
+     v.toNext.exp + ' vs ' + step);
+
+  // 하루가 넘어가면 어제치가 기록된다
+  const d = care.blank(); care.hatch(d);
+  d.dayKey = '2026-08-26'; d.dayExp = 77; d.expDays = [];
+  // advance() 는 흐른 시간이 없으면 바로 돌아간다 — 하루를 넘기려면
+  // 실제로 시간이 지나야 한다
+  d.lastTick = Date.now() - 60 * 60 * 1000;
+  care.advance(d, Date.now(), null);
+  ok('하루가 넘어가면 어제치가 남는다', (d.expDays || [])[0] === 77,
+     JSON.stringify(d.expDays));
+  ok('오늘치는 0 부터 다시', d.dayExp === 0);
+
+  // 이레치만
+  const e = care.blank(); care.hatch(e);
+  e.expDays = [1, 2, 3, 4, 5, 6, 7]; e.dayKey = '2026-08-26'; e.dayExp = 9;
+  e.lastTick = Date.now() - 60 * 60 * 1000;
+  care.advance(e, Date.now(), null);
+  ok('이레치만 들고 있는다', e.expDays.length === 7 && e.expDays[0] === 9,
+     JSON.stringify(e.expDays));
+
+  // 전설이면 다음이 없다
+  const L = care.blank(); care.hatch(L); L.age = 30;
+  ok('마지막 단계면 남은 날도 없다', care.view(L).toNext === null);
+
+  // 사다리는 지금 어디인지 표시한다
+  const lad = care.view(c).ladder;
+  ok('사다리에 지금 칸이 하나 있다',
+     lad.filter((x) => x.now).length === 1 && lad.find((x) => x.now).title === '장로');
+}
+
+console.log('# 밤에 손으로 깨우기');
+{
+  const NIGHT = { night: true, from: 23, to: 7 };
+  const at = (day, h, m) => new Date(2026, 7, day, h, m || 0, 0, 0).getTime();
+  const real = Date.now;
+  const clockAt = (t) => { Date.now = () => t; };
+
+  const c = care.blank(); care.hatch(c);
+  c.energy = 40; c.hunger = 60; c.fun = 60;
+
+  // 밤이 되면 알아서 잠든다 — 이건 그대로여야 한다
+  c.lastTick = at(27, 22, 50);
+  care.advance(c, at(27, 23, 10), NIGHT);
+  ok('밤이 되면 알아서 잠든다', c.sleeping === true && c.autoSleep === true);
+
+  // 손으로 깨운다
+  clockAt(at(27, 23, 11));
+  const woke = care.actSleep(c);
+  ok('깨우기는 먹힌다', woke.ok && c.sleeping === false, JSON.stringify(woke));
+
+  // ★1분 뒤 tick 이 도로 재우면 안 된다 — 버튼이 계속 「깨우기」로 보이던 증상
+  care.advance(c, at(27, 23, 12), NIGHT);
+  ok('★깨워 놓으면 다음 tick 이 도로 재우지 않는다', c.sleeping === false, String(c.sleeping));
+  care.advance(c, at(28, 2, 0), NIGHT);
+  ok('새벽까지도 깨어 있다', c.sleeping === false, String(c.sleeping));
+
+  // 손으로 다시 재우면 깨어 있겠다는 뜻은 거둔다
+  clockAt(at(28, 2, 1));
+  care.actSleep(c);
+  ok('손으로 재우면 잔다', c.sleeping === true);
+  care.advance(c, at(28, 2, 2), NIGHT);
+  ok('재워 둔 채로 있다', c.sleeping === true);
+
+  // 아침이면 자동으로 깨고, 그날 밤에는 다시 자동으로 잠든다
+  care.advance(c, at(28, 8, 0), NIGHT);
+  ok('아침이면 일어난다', c.sleeping === false && !c.autoSleep);
+  c.energy = 40;
+  care.advance(c, at(28, 23, 30), NIGHT);
+  ok('★어젯밤에 깨운 기억이 오늘 밤까지 남지 않는다', c.sleeping === true, String(c.sleeping));
+
+  // 밤 설정이 꺼져 있으면 아무것도 강제하지 않는다
+  const d = care.blank(); care.hatch(d);
+  d.energy = 40; d.lastTick = at(27, 23, 10);
+  care.advance(d, at(27, 23, 20), null);
+  ok('밤 설정이 꺼져 있으면 재우지 않는다', d.sleeping === false);
+
+  Date.now = real;
+}
+
+console.log('# 왜 지금 못 하는가');
+{
+  const c = care.blank(); care.hatch(c);
+  c.age = 2; c.hunger = 100; c.fun = 100; c.energy = 100; c.poops = []; c.tricks = [];
+  const b = care.blocked(c);
+  ['feed', 'snack', 'play', 'walk', 'train', 'sleep', 'clean', 'show'].forEach((k) => {
+    ok('막힌 이유가 있다 — ' + k, typeof b[k] === 'string' && b[k].length > 0, String(b[k]));
+  });
+  ok('세 살 전에는 훈련이 막힌다', b.train === '아직 어려요', b.train);
+  ok('재주를 모르면 그렇게 말한다', b.show === '아직 배운 재주가 없어요', b.show);
+
+  // ★재 보는 것이 상태를 바꾸면 화면을 그릴 때마다 펫이 밥을 먹는다
+  const before = JSON.stringify(c);
+  care.blocked(c);
+  ok('재 보기만 하고 상태는 그대로다', JSON.stringify(c) === before);
+
+  const ok2 = care.blank(); care.hatch(ok2);
+  ok2.age = 5; ok2.hunger = 20; ok2.fun = 20; ok2.energy = 90;
+  ok2.poops = [{ id: 'p1', x: 2 }]; ok2.tricks = ['앉아'];
+  const b2 = care.blocked(ok2);
+  ['feed', 'snack', 'play', 'walk', 'sleep', 'clean', 'show'].forEach((k) => {
+    ok('할 수 있으면 안 막는다 — ' + k, b2[k] === null, String(b2[k]));
+  });
+
+  // 판정과 실제 동작이 같은 말을 해야 한다
+  const stuffed = care.blank(); care.hatch(stuffed);
+  stuffed.hunger = 100;
+  ok('판정과 실제 거절 이유가 같다',
+     care.blocked(stuffed).feed === care.actFeed(stuffed).reason);
+
+  // 화면이 제 손으로 판단하던 것을 걷어냈는지 — 조건이 두 벌이 되면
+  // 훈련이 세 살 전에도 눌리던 그 버그가 그대로 돌아온다
+  const fs2 = require('fs'), path2 = require('path');
+  ['ring.html', 'care.html'].forEach((f) => {
+    const src = fs2.readFileSync(path2.join(__dirname, '..', 'renderer', f), 'utf8');
+    ok(f + ' 은 care.js 의 판정을 쓴다', /c\.blocked/.test(src));
+    ok(f + ' 에 제 손으로 적은 문턱이 없다',
+       !/disabled\s*=\s*[^;]*(?:hunger|fun|energy|age)\s*[<>]/.test(src));
+  });
+}
+
 console.log('# 이정표 표');
 {
   const M = require('../missions.js');

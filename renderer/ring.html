@@ -127,9 +127,25 @@ button .ic{display:block;font-size:15px}
       open = null; drawTray();
       return;
     }
-    document.getElementById('feed').disabled  = c.hunger >= 95;
-    document.getElementById('play').disabled  = c.fun >= 95 || c.energy < 15;
-    sleepBtn.disabled = !c.sleeping && c.energy >= 95;
+    /* 막는 조건은 care.js 한 곳에서만 판단한다. 여기에 다시 적어 두었더니
+       놀기의 소모량이 놀이마다 다른데도 15 로 뭉뚱그려져 있었다.
+       그리고 흐려지기만 하면 왜 안 되는지 알 길이 없어서, title 로
+       이유를 달아 준다 — 문구는 care.js 가 이미 들고 있던 것이다. */
+    var why = c.blocked || {};
+    function gate(id, reason){
+      var b = document.getElementById(id);
+      b.disabled = !!reason;
+      b.title = reason || '';
+    }
+    // 밥 버튼은 밥과 간식을 함께 여는 자리다 — 둘 다 막혔을 때만 잠근다
+    gate('feed', (why.feed && why.snack) ? why.feed : null);
+    gate('play', why.play);
+    gate('sleep', why.sleep);
+    if (c.sleeping) {
+      sleepBtn.title = (c.napKind === 'auto')
+        ? '스스로 잠들었어요 — 깨우면 그대로 깨어 있어요'
+        : '깨우기';
+    }
     if (open && document.getElementById(open).disabled) open = null;
     drawTray();
   });

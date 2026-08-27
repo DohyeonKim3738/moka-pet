@@ -147,6 +147,20 @@ const LOG_MAX = 40;
    the app so tests stay independent of the clock. */
 const NIGHT = { from: 23, to: 7 };
 
+/* 지금 밤이라면 그 밤이 시작된 시각. 손으로 깨운 것이 '이번 밤'의 일인지
+   가리는 데 쓴다 — 어젯밤에 깨운 기억으로 오늘 밤을 새우면 안 된다. */
+function nightStart(now, from, to) {
+  from = Number.isFinite(from) ? from : NIGHT.from;
+  to = Number.isFinite(to) ? to : NIGHT.to;
+  const d = new Date(now);
+  const h = d.getHours();
+  d.setMinutes(0, 0, 0);
+  // 자정을 넘긴 밤이면 시작은 어제 저녁이다
+  if (from > to && h < to) d.setDate(d.getDate() - 1);
+  d.setHours(from);
+  return d.getTime();
+}
+
 function isNight(now, from, to) {
   const h = new Date(now).getHours();
   from = Number.isFinite(from) ? from : NIGHT.from;
@@ -385,12 +399,28 @@ function advance(c, now, opts) {
   }
 
   decayTraits(c, now);
+  // 경험치를 한 번도 못 얻은 날도 하루로 세어야 평균이 맞는다
+  rollDay(c, now);
 
-  // bedtime, and morning
+  /* 잠자리와 아침.
+   *
+   * 예전에는 밤이면 무조건 다시 재웠다. 그래서 밤에 손으로 깨워도 다음
+   * 1분 tick 이 도로 재웠고, 버튼은 볼 때마다 「깨우기」였다 — 눌러도
+   * 아무 일도 일어나지 않는 것처럼 보인다. actSleep 에는 이미
+   * "woken on purpose; do not put it back" 이라고 적혀 있었지만, 그 뜻을
+   * 여기서 보지 않았다.
+   *
+   * 그래서 '이번 밤에 손으로 깨웠는가'를 보고, 그랬으면 그 밤 동안은
+   * 도로 재우지 않는다. 밤이 지나면 저절로 풀린다. */
   if (opts && opts.night) {
     const night = isNight(now, opts.from, opts.to);
-    if (night && !c.sleeping) { c.sleeping = true; c.autoSleep = true; }
-    else if (!night && c.sleeping && c.autoSleep) { c.sleeping = false; delete c.autoSleep; }
+    if (night) {
+      const woke = c.wokeAt && c.wokeAt >= nightStart(now, opts.from, opts.to);
+      if (!c.sleeping && !woke) { c.sleeping = true; c.autoSleep = true; }
+    } else {
+      if (c.sleeping && c.autoSleep) { c.sleeping = false; delete c.autoSleep; }
+      delete c.wokeAt;                 // 밤이 끝나면 기억도 끝난다
+    }
   }
 
   c.lastTick = now;
@@ -491,9 +521,39 @@ function stageFor(c) {
    doing it again straight away is worth 18, because it is no longer hungry
    or bored. Someone who looks in often should get further, and now does.
    `dayExp` is still counted — it is worth seeing what today came to. */
+/* 하루가 넘어갈 때 어제까지의 하루치를 남겨 둔다. 이게 있어야 "이 속도면
+   며칠"을 짐작이 아니라 실제로 계산할 수 있다. 이레치만 들고 있으면 된다.
+   앱을 며칠 꺼 두었다면 그 날들은 기록되지 않는다 — 돌보지 않은 날을 0으로
+   세는 것도 틀린 말은 아니지만, 실제로 재 본 날만 남기는 편이 정직하다. */
+const EXP_DAYS = 7;
+
+function rollDay(c, now) {
+  const today = dayKey(now);
+  if (c.dayKey === today) return;
+  if (c.dayKey) {
+    c.expDays = [Math.round(c.dayExp || 0)].concat(c.expDays || []).slice(0, EXP_DAYS);
+  }
+  c.dayKey = today;
+  c.dayExp = 0;
+}
+
+/* 하루에 얼마나 오르고 있나. 다 채운 날들의 평균이다 — 오늘은 아직
+   진행 중이라 넣으면 아침마다 "앞으로 백 일" 같은 소리가 나온다. */
+function pace(c) {
+  const days = (c.expDays || []).filter((n) => Number.isFinite(n));
+  if (!days.length) return null;
+  return Math.round(days.reduce((a, b) => a + b, 0) / days.length);
+}
+
+/* 지금부터 그 나이가 될 때까지 남은 경험치 */
+function expToAge(c, target) {
+  let n = -c.exp;
+  for (let a = c.age; a < target; a++) n += needFor(a);
+  return Math.max(0, Math.round(n));
+}
+
 function award(c, amount) {
-  const today = dayKey(Date.now());
-  if (c.dayKey !== today) { c.dayKey = today; c.dayExp = 0; }
+  rollDay(c, Date.now());
   decayTraits(c, Date.now());
   const gain = Math.max(0, amount);
   if (gain <= 0) return { gain: 0, aged: false };
@@ -723,9 +783,13 @@ function actSleep(c) {
   if (c.sleeping) {
     c.sleeping = false;
     delete c.autoSleep;              // woken on purpose; do not put it back
+    // 언제 손으로 깨웠는지 남긴다. 밤 자동재우기가 이걸 보고 물러선다 —
+    // 이 줄이 없으면 다음 tick 이 도로 재운다.
+    c.wokeAt = Date.now();
     return { ok: true, verb: '기상', gain: 0, aged: false };
   }
   if (c.energy >= 95) return { ok: false, reason: '아직 쌩쌩해요' };
+  delete c.wokeAt;                   // 손으로 재웠으면 깨어 있겠다는 뜻은 거둔다
   c.sleeping = true;
   bump(c, 'rest', 1);
   c.naps = (c.naps || 0) + 1;
@@ -740,6 +804,44 @@ function actClean(c, id) {
   if (c.poops.length === before) return { ok: false, reason: '치울 게 없어요' };
   c.cleans = (c.cleans || 0) + 1;
   return Object.assign({ ok: true, verb: '청소' }, award(c, 10));
+}
+
+/* ---------- 왜 지금 못 하는가 ----------
+ * 조건을 화면마다 따로 적어 두었더니 세 벌(care.js · ring.html · care.html)이
+ * 서로 어긋났다. 훈련은 세 살부터인데 막대는 그대로 열어 두었고, 놀기는
+ * 놀이마다 드는 힘이 다른데 화면은 15 로 뭉뚱그렸다. 그리고 막힌 버튼은
+ * 흐려지기만 할 뿐 이유를 말하지 않아서, 만든 사람조차 "놀기가 왜 안
+ * 눌리지" 하고 한참을 헤맸다.
+ *
+ * 그래서 판단을 여기 한 곳으로 모은다. 조건을 다시 적는 대신 **실제 동작을
+ * 복사본에 한 번 태워 본다** — 조건을 옮겨 적으면 그 순간 또 두 벌이 된다.
+ * 복사본이라 진짜 상태는 건드리지 않는다. */
+const PROBES = [
+  ['feed',  (c) => actFeed(c)],
+  ['snack', (c) => actSnack(c)],
+  ['play',  (c) => actPlay(c)],
+  ['walk',  (c) => actWalk(c)],
+  ['train', (c) => actTrain(c)],
+  ['sleep', (c) => actSleep(c)],
+  ['clean', (c) => actClean(c)],
+  ['show',  (c) => actPerform(c, (c.tricks || [])[0])]
+];
+
+function blocked(c) {
+  const out = {};
+  PROBES.forEach(([key, run]) => {
+    let why = null;
+    try {
+      const r = run(JSON.parse(JSON.stringify(c)));
+      if (!r || !r.ok) why = (r && r.reason) || '지금은 안 돼요';
+    } catch (e) {
+      why = null;               // 알 수 없으면 막지 않는다 — 막는 쪽이 더 나쁘다
+    }
+    out[key] = why;
+  });
+  // 재주를 하나도 모르면 "못 하는 재주예요"가 아니라 아직 배운 게 없는 것이다
+  if (out.show && !(c.tricks || []).length) out.show = '아직 배운 재주가 없어요';
+  return out;
 }
 
 /* ---------- reporting ---------- */
@@ -977,6 +1079,24 @@ function view(c) {
     log: (c.log || []).slice(0, 10),
     canMate: canMate(c),
     mateBlocked: whyNotMate(c),
+    blocked: blocked(c),
+    // 스스로 잠든 것인지, 손으로 재운 것인지. 화면이 "왜 자고 있는지"를
+    // 말해 줄 수 있어야 한다 — 밤에 자는 걸 고장으로 오해했다.
+    napKind: c.sleeping ? (c.autoSleep ? 'auto' : 'manual') : null,
+    // 다음 칭호까지 — 남은 경험치와, 요즘 속도로 며칠쯤인지
+    toNext: (function () {
+      const n = nextStage(c);
+      if (!n || c.egg) return null;
+      const need = expToAge(c, n.from);
+      const per = pace(c);
+      return {
+        title: n.title, from: n.from, ro: n.ro, exp: need,
+        pace: per,
+        days: per > 0 ? Math.max(1, Math.ceil(need / per)) : null
+      };
+    })(),
+    ladder: stageTable().filter((t) => t.stage !== 'egg')
+      .map((t) => ({ title: t.title, from: t.from, now: t.title === titleFor(c.age) })),
     exp: Math.round(c.exp),
     expNeed: needFor(c.age),
     dayExp: Math.round(c.dayExp),
@@ -1014,6 +1134,7 @@ function view(c) {
 }
 
 module.exports = {
+  blocked, nightStart, pace, expToAge,
   blank, normalize, advance, view, wants, mood, titleFor, needFor, ga, ro, eul, neun,
   actFeed, actSnack, actPlay, actWalk, actSleep, actClean, actTrain, actPat, actGame,
   actPerform, showValue, MEALS, SNACKS, PLAYS, favourite, learned, canCook,

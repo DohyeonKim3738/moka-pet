@@ -197,6 +197,12 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
   font-size:30px;font-weight:800;color:var(--accent)}
 .grow figcaption{margin-top:6px;font-size:12px;color:#6B5E4E;white-space:nowrap}
 .grow .to{padding-bottom:34px;font-size:18px;color:#C4B7A5}
+#growPace{margin-top:2px;color:var(--muted)}
+.ladder{display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:10px;
+        justify-content:center;font-size:11.5px;color:#B3A692}
+.ladder span.on{color:#A8763F;font-weight:600}
+.ladder span.past{color:#CFC4B2}
+.ladder i{font-style:normal;color:#DED5C6}
 .link{appearance:none;background:none;border:0;padding:0;cursor:pointer;
   color:#9A8F80;text-decoration:underline;font:inherit}
 .link:hover{color:#6B5E4E}
@@ -253,6 +259,8 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
         <figure><div class="art next" id="artNext"></div><figcaption id="capNext">—</figcaption></figure>
       </div>
       <p class="note" id="growNote"></p>
+      <p class="note" id="growPace"></p>
+      <div class="ladder" id="growLadder"></div>
     </div>
 
     <div class="card">
@@ -283,6 +291,10 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       <div class="sub" style="margin-top:8px">
         <input type="checkbox" id="zoom">
         <span id="zoomLabel">밥·놀기·재주 할 때 가까이 오기</span>
+      </div>
+      <div class="sub" style="margin-top:8px">
+        <input type="checkbox" id="stretch">
+        <span id="stretchLabel">오래 앉아 있으면 부르기</span>
       </div>
       <div class="tricks" id="tricks"></div>
       <p class="note" id="hint"></p>
@@ -353,6 +365,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       nextArt.classList.remove('mystery');
       nextCap.textContent = '마지막 단계';
       note.textContent = '더 자랄 곳이 없어요. 오래오래 함께 지내요.';
+      drawPace(c);
       return;
     }
     nextArt.classList.add('next');
@@ -367,6 +380,32 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     note.textContent = c.egg
       ? '알에서 깨어나면 아기가 돼요.'
       : (next.from + '살이 되면 ' + next.title + (next.ro || '로') + ' 자라요.');
+    drawPace(c);
+  }
+
+  /* 얼마나 남았는지. "다음 나이까지 N/M" 은 경험치 줄에 이미 있지만,
+     정작 궁금한 것은 "다음 칭호까지 며칠"이다 — 앱 안에서는 알 길이
+     없어서 사람에게 물어봐야 했다.
+     ★'이 속도면'은 짐작이 아니라 지난 며칠간 실제로 오른 경험치의
+     평균이다. 재 본 날이 없으면 아는 척하지 않는다. */
+  function drawPace(c){
+    var el = document.getElementById('growPace');
+    var lad = document.getElementById('growLadder');
+    var t = c.toNext;
+    if (!t){ el.textContent = ''; lad.innerHTML = ''; }
+    else {
+      var line = '다음 칭호 「' + t.title + '」까지 경험치 ' + t.exp.toLocaleString();
+      if (t.days) line += '   ·   요즘 속도(하루 ' + t.pace + ')면 ' + t.days + '일쯤';
+      else line += '   ·   며칠 더 지내 보면 얼마나 걸릴지 알려드릴게요';
+      el.textContent = line;
+    }
+    var rows = c.ladder || [];
+    var passed = true;
+    lad.innerHTML = rows.map(function(r, i){
+      var cls = r.now ? 'on' : (passed ? 'past' : '');
+      if (r.now) passed = false;
+      return (i ? '<i>›</i>' : '') + '<span class="' + cls + '">' + r.title + '</span>';
+    }).join('');
   }
 
   /* Everyone in the cast. Met pets show as themselves at the age they
@@ -628,8 +667,14 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
           if (f.id === fav) cls.push('fav');
           if (f.id === last) cls.push('again');
         }
+        // 잠긴 것은 무엇을 해야 열리는지, 지금 안 되는 것은 왜 안 되는지.
+        // 올려두면 말해 준다.
+        var tip = f.lock ? (f.label + (f.neun || '은') + ' ' + label + ' ' +
+                            f.need + '번 (' + done + '/' + f.need + ')')
+                         : (full || '');
         return '<button data-eat="' + act + ':' + f.id + '"' +
                (cls.length ? ' class="' + cls.join(' ') + '"' : '') +
+               (tip ? ' title="' + tip + '"' : '') +
                ((full || f.lock) ? ' disabled' : '') + '>' +
                f.label + (f.lock ? ' 🔒' : '') + '</button>';
       }).join('');
@@ -641,9 +686,10 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       // 놀기는 먹는 것이 아니다 — 같은 규칙이라고 같은 말을 쓸 수는 없다
       var play = act === 'play';
       var taste = play ? '좋아하는 놀이' : '입맛';
+      // full 은 이제 care.js 가 준 '거절 이유' 자체다. 여기서 다시
+      // 판단하지 않으므로 놀이마다 다른 소모량 같은 것도 저절로 맞는다.
       var why;
-      if (full) why = play ? (c.fun >= 95 ? '지금은 신나 있어요' : '너무 지쳤어요')
-                           : '배가 불러요';
+      if (full) why = full;
       else if (fav) why = taste + ' · ' + (list.filter(function(f){ return f.id === fav; })[0] || {}).label +
                           '   ·   같은 걸 연달아 ' + (play ? '하면' : '주면') + ' 시들해져요';
       else why = '여러 가지를 ' + (play ? '해보면 좋아하는 놀이가' : '먹여 보면 입맛이') + ' 생겨요';
@@ -655,11 +701,11 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     }
 
     var n = c.cooked || { meals: 0, snacks: 0, plays: 0 };
+    var no = c.blocked || {};
     host.innerHTML =
-      course('밥',   c.meals  || [], c.favMeal,  c.lastMeal,  'feed',  c.hunger >= 95, n.meals) +
-      course('간식', c.snacks || [], c.favSnack, c.lastSnack, 'snack', c.hunger >= 99, n.snacks) +
-      course('놀기', c.plays  || [], c.favPlay,  c.lastPlay,  'play',
-             c.fun >= 95 || c.energy < 15, n.plays);
+      course('밥',   c.meals  || [], c.favMeal,  c.lastMeal,  'feed',  no.feed,  n.meals) +
+      course('간식', c.snacks || [], c.favSnack, c.lastSnack, 'snack', no.snack, n.snacks) +
+      course('놀기', c.plays  || [], c.favPlay,  c.lastPlay,  'play',  no.play,  n.plays);
 
     Array.prototype.forEach.call(host.querySelectorAll('[data-eat]'), function(b){
       b.addEventListener('click', function(){
@@ -836,18 +882,32 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     drawTraits(c);
     drawTricks(c);
 
-    // 밥·간식·놀기는 종류 줄로 옮겨 갔다 — 그쪽에서 잠근다
-    document.getElementById('walk').disabled  = c.energy < 30 || c.fun >= 98;
-    document.getElementById('train').disabled =
-      c.age < 3 || !c.nextTrick || c.energy < 25 || c.fun < 30;
-    document.getElementById('clean').disabled = !c.poops || !c.poops.length;
+    // 밥·간식·놀기는 종류 줄로 옮겨 갔다 — 그쪽에서 잠근다.
+    // 나머지는 care.js 의 판정(c.blocked)만 쓴다. 여기서 조건을 다시 적으면
+    // 그 순간 두 벌이 되고, 실제로 훈련이 세 살 전에도 눌리던 적이 있다.
+    var why = c.blocked || {};
+    ['walk', 'train', 'clean'].forEach(function(k){
+      var b = document.getElementById(k);
+      b.disabled = !!why[k];
+      // 흐려지기만 하면 왜 안 되는지 알 길이 없다 — 올려두면 말해 준다
+      b.title = why[k] || '';
+    });
     var sleep = document.getElementById('sleep');
     sleep.textContent = c.sleeping ? '깨우기' : '재우기';
-    sleep.disabled = !c.sleeping && c.energy >= 95;
+    sleep.disabled = !!why.sleep;
+    sleep.title = why.sleep ||
+      (c.napKind === 'auto' ? '스스로 잠들었어요 — 깨우면 그대로 깨어 있어요' : '');
 
     document.getElementById('chat').checked = c.chat !== false;
+    document.getElementById('stretch').checked = !!c.stretch;
+    document.getElementById('stretchLabel').textContent =
+      (c.stretchMin || 50) + '분 넘게 앉아 있으면 부르기';
     setNightUI(c);
     document.getElementById('hint').textContent = c.hint || '';
+  });
+
+  document.getElementById('stretch').addEventListener('change', function(){
+    care.setStretch(this.checked);
   });
 
   document.getElementById('chat').addEventListener('change', function(){

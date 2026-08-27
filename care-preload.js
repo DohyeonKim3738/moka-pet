@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('care', {
   game: (won) => ipcRenderer.send('care-game', !!won),
   rename: (name) => ipcRenderer.send('care-rename', name),
   setAway: (on) => ipcRenderer.send('away-set', !!on),
+  setStretch: (on) => ipcRenderer.send('stretch-set', !!on),
   trick: (name) => ipcRenderer.send('care-trick', name),
   setZoom: (on) => ipcRenderer.send('zoom-set', !!on),
   setBadge: (id) => ipcRenderer.send('badge-set', id),

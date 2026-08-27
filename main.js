@@ -104,6 +104,10 @@ function speciesOf(id) {
 /* ------------------------------------------------------------------ *
  * config
  * ------------------------------------------------------------------ */
+/* 오래 앉아 있으면 한 번 부른다. 기본은 꺼 둔다 — 잘못 만들면 가장
+   성가신 기능이라, 켜는 사람만 켜게 한다. */
+const STRETCH_DEFAULT = { enabled: false, minutes: 50 };
+
 function defaults() {
   const pets = {};
   SPECIES.forEach(s => { pets[s.key] = blankPet(s.key); });
@@ -113,6 +117,8 @@ function defaults() {
     nextKid: 1,
     night: { enabled: true, from: 23, to: 7 },
     away: { enabled: true, minutes: 20 },
+    stretch: Object.assign({}, STRETCH_DEFAULT),
+    taught: {},
     zoom: { enabled: true },
     update: { enabled: true, repo: 'DohyeonKim3738/moka-pet', skip: '' },
     missions: { done: [], badge: '' },
@@ -266,6 +272,9 @@ function loadConfig() {
   if (raw.chat && typeof raw.chat === 'object') Object.assign(cfg.chat, raw.chat);
   if (raw.night && typeof raw.night === 'object') Object.assign(cfg.night, raw.night);
   if (raw.away && typeof raw.away === 'object') Object.assign(cfg.away, raw.away);
+  // ★새 저장본 키를 복원부에 넣는 걸 빠뜨리면 켤 때마다 초기화된다
+  if (raw.stretch && typeof raw.stretch === 'object') Object.assign(cfg.stretch, raw.stretch);
+  if (raw.taught && typeof raw.taught === 'object') cfg.taught = Object.assign({}, raw.taught);
   if (raw.zoom && typeof raw.zoom === 'object') Object.assign(cfg.zoom, raw.zoom);
   if (raw.home && typeof raw.home === 'object') Object.assign(cfg.home, raw.home);
   if (raw.update && typeof raw.update === 'object') Object.assign(cfg.update, raw.update);
@@ -2046,6 +2055,8 @@ function carePayload() {
   v.zoom = cfg.zoom.enabled;
   v.zoomFactor = Math.round(targetZoom() * 100) / 100;
   v.awayMin = cfg.away.minutes;
+  v.stretch = cfg.stretch.enabled;
+  v.stretchMin = cfg.stretch.minutes;
   v.nightFrom = cfg.night.from;
   v.nightTo = cfg.night.to;
   v.hint = '필요할 때 돌봐줘야 경험치가 오릅니다. 배부른데 밥을 줘도 오르지 않아요.';
@@ -2128,6 +2139,8 @@ function startCare() {
   careTimer = setInterval(() => {
     careTick();
     chatterTick();
+    teachTick();
+    stretchTick();
   }, 60 * 1000);
   // idle is polled faster than the care clock so coming back is noticed
   // in seconds rather than in a minute
@@ -2157,6 +2170,60 @@ function reactTo(what) {
   const c = careState();
   say(chatter.reactLine(what, { mood: care.mood(c), personality: care.personality(c) }),
       'react', true);
+}
+
+/* ---------- 처음 켰을 때 ----------
+ * 팀에 나눠 준 앱이라 새로 받는 사람이 계속 생긴다. 창을 하나 더 띄우는
+ * 대신 말풍선으로 세 번만 일러 주고 끝낸다 — 읽지 않아도 손해가 없고,
+ * 한 번 한 말은 다시 하지 않는다.
+ *
+ * 조건은 '언제 알면 쓸모 있는가'로 잡았다. 막대 이야기는 부화한 뒤에,
+ * 이정표 이야기는 첫 생일을 맞은 뒤에 해야 알아들을 수 있다. */
+const LESSONS = [
+  { id: 'egg',   when: (c) => c.egg,
+    line: '알을 톡톡 눌러 주면 더 빨리 깨어나요.' },
+  { id: 'ring',  when: (c) => !c.egg,
+    line: '저를 가리키면 아래에 막대가 나와요. 밥과 놀기는 거기서요.' },
+  { id: 'care',  when: (c) => !c.egg && c.age >= 2,
+    line: '막대의 「정보」를 누르면 돌보기 창이에요. 이정표도 거기 있어요.' }
+];
+
+function teachTick() {
+  if (!cfg.chat.enabled || bubbleActive()) return;
+  const c = careState();
+  if (c.sleeping) return;
+  const lesson = LESSONS.find((l) => !cfg.taught[l.id] && l.when(c));
+  if (!lesson) return;
+  cfg.taught[lesson.id] = true;
+  saveConfig();
+  say(lesson.line, 'chat', true);
+}
+
+/* ---------- 오래 앉아 있으면 ----------
+ * 자리를 비우면 재우는 것의 반대편. 자리를 뜨지 않고 계속 앉아 있으면
+ * 한 번 부른다. 기본은 꺼져 있다.
+ *
+ * '앉아 있었는지'는 시계가 아니라 유휴 시간으로 잰다 — 앱을 켜 둔 채
+ * 자리를 비운 사람에게 스트레칭하라고 하면 안 된다. */
+let sittingSince = Date.now();
+let lastStretch = 0;
+
+function stretchTick() {
+  if (!cfg.stretch.enabled) { sittingSince = Date.now(); return; }
+  const idle = idleSeconds();
+  // 5분 넘게 손을 놓았으면 이미 쉰 것이다 — 앉은 시간을 다시 센다
+  if (idle > 5 * 60) { sittingSince = Date.now(); return; }
+  const now = Date.now();
+  const sat = (now - sittingSince) / 60000;
+  if (sat < cfg.stretch.minutes) return;
+  if (now - lastStretch < cfg.stretch.minutes * 60 * 1000) return;
+  lastStretch = now;
+  sittingSince = now;
+  const c = careState();
+  if (c.egg || c.sleeping) return;
+  say(Math.round(sat) + '분째 앉아 계세요. 저랑 같이 좀 움직일까요?', 'react', true);
+  setPose('waving', true);
+  setTimeout(() => setPose('idle'), 2200);
 }
 
 /* Needs outrank small talk, and small talk only happens when nothing is
@@ -2440,6 +2507,14 @@ ipcMain.on('zoom-set', (_e, on) => {
 ipcMain.on('away-set', (_e, on) => {
   cfg.away.enabled = !!on;
   if (!cfg.away.enabled && awayNapping) wakeFromAway();
+  saveConfig();
+  pushCare();
+});
+
+ipcMain.on('stretch-set', (_e, on) => {
+  cfg.stretch.enabled = !!on;
+  sittingSince = Date.now();          // 켠 순간부터 다시 센다
+  lastStretch = 0;
   saveConfig();
   pushCare();
 });
