@@ -1398,20 +1398,45 @@ function ensureAgendaWindow() {
   return agendaWin;
 }
 
-/* Dock to whichever side of the screen the pet is NOT on, so the panel
-   never lands on top of it. */
+/* Beside the pet, on whichever side has room.
+ *
+ * This used to dock to the far edge of the screen opposite the pet, which
+ * did keep the two from overlapping — and made the panel look like some
+ * unrelated window that had appeared in the corner. It is the pet telling
+ * you about your day, so it belongs next to the pet, the way the speech
+ * bubble and the button bar do. It follows on every move (win.on('moved')).
+ */
+const AGENDA_GAP = 12;
+
 function placeAgenda(height) {
   if (!agendaWin || agendaWin.isDestroyed()) return;
   const area = win && !win.isDestroyed()
     ? screen.getDisplayMatching(win.getBounds()).workArea
     : screen.getPrimaryDisplay().workArea;
-  const petMid = win && !win.isDestroyed()
-    ? win.getBounds().x + win.getBounds().width / 2
-    : area.x + area.width;
-  const onRight = petMid > area.x + area.width / 2;
-  const x = onRight ? area.x + 16 : area.x + area.width - AGENDA_W - 16;
-  const h = Math.max(80, Math.min(area.height - 40, Math.round(height) || 120));
-  const y = Math.max(area.y + 16, area.y + Math.round((area.height - h) / 2));
+  const h = Math.max(80, Math.min(area.height - 32, Math.round(height) || 120));
+
+  if (!win || win.isDestroyed()) {
+    agendaWin.setBounds({
+      x: area.x + area.width - AGENDA_W - 16,
+      y: area.y + Math.round((area.height - h) / 2),
+      width: AGENDA_W, height: h
+    });
+    return;
+  }
+
+  const p = win.getBounds();
+  const left = p.x - AGENDA_GAP - AGENDA_W;          // panel's x if it sits left
+  const right = p.x + p.width + AGENDA_GAP;
+  // the side with room; when neither fits, the roomier one, clamped
+  const fitsLeft = left >= area.x + 8;
+  const fitsRight = right + AGENDA_W <= area.x + area.width - 8;
+  let x = fitsLeft ? left : (fitsRight ? right : (p.x - area.x > area.width / 2 ? left : right));
+  x = Math.max(area.x + 8, Math.min(area.x + area.width - AGENDA_W - 8, x));
+
+  // level with the pet's head rather than its feet, then kept on screen
+  let y = p.y + Math.round(p.height * 0.25) - Math.round(h / 2);
+  y = Math.max(area.y + 8, Math.min(area.y + area.height - h - 8, y));
+
   agendaWin.setBounds({ x, y, width: AGENDA_W, height: h });
 }
 
