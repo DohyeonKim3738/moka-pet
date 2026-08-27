@@ -631,6 +631,41 @@ console.log('# 밥과 간식의 종류');
     ok('첫 요리는 언제나 만들 수 있다', care.canCook(care.MEALS, 'korean', 0));
   }
 
+  console.log('# 놀이의 종류');
+  {
+    const fresh = () => {
+      const c = care.blank();
+      c.egg = false; c.age = 6; c.bornAt = Date.now();
+      c.fun = 0; c.energy = 100; c.weight = 9;
+      return c;
+    };
+    ok('놀이 네 가지', care.PLAYS.length === 4);
+    const funs = care.PLAYS.map((g) => g.fun), costs = care.PLAYS.map((g) => g.energy);
+    ok('놀이마다 즐거움이 다르다', new Set(funs).size === funs.length, funs.join(','));
+    ok('놀이마다 기운이 다르게 든다', new Set(costs).size === costs.length, costs.join(','));
+
+    // the expensive one takes more off the ribs — that is what it is for
+    const lose = (id) => { const c = fresh(); const w = c.weight; care.actPlay(c, id); return +(w - c.weight).toFixed(4); };
+    ok('원반이 숨바꼭질보다 살이 빠진다', lose('disc') > lose('hide'), lose('disc') + ' vs ' + lose('hide'));
+
+    // ...and is the first to be out of reach when it is tired
+    const tired = (id) => { const c = fresh(); c.energy = 18; return care.actPlay(c, id).ok; };
+    ok('지치면 원반은 못 한다', tired('hide') === true && tired('disc') === false);
+
+    // same rules as the menu
+    {
+      const c = fresh();
+      care.actPlay(c, 'ball'); const first = c.fun;
+      c.fun = 0;
+      const r = care.actPlay(c, 'ball');
+      ok('같은 놀이 연달아는 시들하다', r.again === true && c.fun < first, first + ' → ' + c.fun);
+    }
+    ok('처음엔 공놀이뿐', care.learned(care.PLAYS, 0).map((g) => g.id).join() === 'ball');
+    ok('30번이면 전부', care.learned(care.PLAYS, 30).length === care.PLAYS.length);
+    ok('안 배운 놀이는 못 한다',
+       !care.canCook(care.PLAYS, 'disc', 10) && care.canCook(care.PLAYS, 'disc', 30));
+  }
+
   console.log('# 은/는');
   [['쿠키', '쿠키는'], ['양식', '양식은'], ['우유', '우유는'], ['아이스크림', '아이스크림은']]
     .forEach(([w, want]) => ok(want, w + care.neun(w) === want, w + care.neun(w)));

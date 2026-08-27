@@ -58,7 +58,20 @@ const SNACKS = [
   { id: 'icecream', label: '아이스크림', hunger: 16, weight: 1.6, fun: 28, after: 45 }
 ];
 
-/* what you know how to make, given how often you have made anything */
+/* ---------- and what you do with it ----------
+ * Same idea as the menu: four games that cost and give differently, so
+ * "놀아주기" is a decision rather than a button. 원반던지기 wears a pet out
+ * and takes the weight off; 숨바꼭질 is what you reach for when it is
+ * nearly spent.
+ */
+const PLAYS = [
+  { id: 'ball',  label: '공놀이',     fun: 45, energy: 8,  weight: 1.0, after: 0 },
+  { id: 'hide',  label: '숨바꼭질',   fun: 38, energy: 5,  weight: 0.5, after: 6 },
+  { id: 'tug',   label: '줄다리기',   fun: 42, energy: 11, weight: 1.3, after: 15 },
+  { id: 'disc',  label: '원반던지기', fun: 52, energy: 14, weight: 1.7, after: 30 }
+];
+
+/* what you know, given how often you have done it at all */
 function learned(list, cooked) {
   return list.filter((f) => (f.after || 0) <= (cooked || 0));
 }
@@ -188,7 +201,7 @@ function blank() {
     // lifetime tallies. traits decay every day, so milestones cannot be
     // built on them — these only ever go up.
     meals: 0, snacks: 0, plays: 0, pats: 0, cleans: 0, naps: 0, shows: 0,
-    diet: {}, lastMeal: null, lastSnack: null,   // what it has been fed, and the last of each
+    diet: {}, lastMeal: null, lastSnack: null, lastPlay: null,   // what it has had, and the last of each
     egg: true, eggAt: now, eggTaps: 0, lastWarm: 0,
     poops: [], sleeping: false,
     lastTick: now, lastPoop: now,
@@ -229,7 +242,7 @@ function normalize(c) {
     out[k] = Number.isFinite(out[k]) && out[k] >= 0 ? out[k] : 0;
   });
   // only dishes that exist, only counts that are numbers
-  const menu = MEALS.concat(SNACKS).map((f) => f.id);
+  const menu = MEALS.concat(SNACKS).concat(PLAYS).map((f) => f.id);
   const diet = {};
   if (out.diet && typeof out.diet === 'object') {
     menu.forEach((id) => {
@@ -238,7 +251,7 @@ function normalize(c) {
     });
   }
   out.diet = diet;
-  ['lastMeal', 'lastSnack'].forEach((k) => {
+  ['lastMeal', 'lastSnack', 'lastPlay'].forEach((k) => {
     if (menu.indexOf(out[k]) < 0) out[k] = null;
   });
   out.log = Array.isArray(out.log)
@@ -487,7 +500,7 @@ function award(c, amount) {
    should never mean going hungry. */
 function eat(c, food, prevKey) {
   const again = c[prevKey] === food.id;
-  const loved = favourite(c, MEALS.concat(SNACKS)) === food;
+  const loved = favourite(c, MEALS.concat(SNACKS).concat(PLAYS)) === food;
   let fun = food.fun + (loved ? 3 : 0);
   if (again) fun = Math.round(fun * 0.5);
   c[prevKey] = food.id;
@@ -532,18 +545,23 @@ function actSnack(c, kind) {
                        award(c, 3));
 }
 
-function actPlay(c) {
+function actPlay(c, kind) {
   if (c.egg) return { ok: false, reason: '아직 알이에요' };
   if (c.fun >= 95) return { ok: false, reason: '지금은 신나 있어요' };
-  if (c.energy < 15) return { ok: false, reason: '너무 지쳤어요' };
+  const game = pickFood(c, PLAYS, kind, 'lastPlay');
+  const cost = Math.round(game.energy * mods(c).playCost);
+  if (c.energy < cost + 7) return { ok: false, reason: '너무 지쳤어요' };
   const need = 100 - c.fun;
-  c.fun = clamp(c.fun + 45);
-  c.energy = clamp(c.energy - Math.round(8 * mods(c).playCost));
+  const e = eat(c, game, 'lastPlay');           // same rules: bored of it, or fond of it
+  c.fun = clamp(c.fun + e.fun);
+  c.energy = clamp(c.energy - cost);
   c.sleeping = false;
-  addWeight(c, WEIGHT.play);
+  addWeight(c, WEIGHT.play * game.weight);
   bump(c, 'play', 1);
   c.plays = (c.plays || 0) + 1;
-  return Object.assign({ ok: true, verb: '놀기' }, award(c, Math.round(need / 100 * 18) + 4));
+  return Object.assign({ ok: true, verb: '놀기', play: game.id, label: game.label,
+                         again: e.again, loved: e.loved },
+                       award(c, Math.round(need / 100 * 18) + 4));
 }
 
 /* Showing off what it knows.
@@ -964,10 +982,13 @@ function view(c) {
     show: showValue(c),
     meals: MEALS.map((f) => ({ id: f.id, label: f.label, note: f.note, neun: neun(f.label) })),
     snacks: SNACKS.map((f) => ({ id: f.id, label: f.label, neun: neun(f.label) })),
+    plays: PLAYS.map((f) => ({ id: f.id, label: f.label, neun: neun(f.label) })),
     lastMeal: c.lastMeal || null,
     lastSnack: c.lastSnack || null,
+    lastPlay: c.lastPlay || null,
     favMeal: (favourite(c, MEALS) || {}).id || null,
     favSnack: (favourite(c, SNACKS) || {}).id || null,
+    favPlay: (favourite(c, PLAYS) || {}).id || null,
     diet: Object.assign({}, c.diet || {})
   };
 }
@@ -975,7 +996,7 @@ function view(c) {
 module.exports = {
   blank, normalize, advance, view, wants, mood, titleFor, needFor, ga, ro, eul, neun,
   actFeed, actSnack, actPlay, actWalk, actSleep, actClean, actTrain, actPat, actGame,
-  actPerform, showValue, MEALS, SNACKS, favourite, learned, canCook,
+  actPerform, showValue, MEALS, SNACKS, PLAYS, favourite, learned, canCook,
   weightBand, baseWeight, personality, natureKey, natureNote, mods, nextTrick, TRICKS,
   hatchProgress, hatch, warmEgg, canWarm, reset, stageFor, stageScale, isNight,
   canMate, whyNotMate, inherit, inheritTricks, markMated, MATE_AGE, note,

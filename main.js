@@ -1486,6 +1486,9 @@ let lastBubbleH = 100;
 const BUBBLE_W = 280;
 const RING_W = 195;   // four 40px buttons + gaps + padding
 const RING_H = 56;
+/* The bar grows when it opens a tray of dishes or games, and says how big
+   it needs to be — the same handshake the bubble uses. */
+let ringSize = { w: RING_W, h: RING_H };
 
 function bubbleActive() { return !!bubbleTimer; }
 
@@ -1978,7 +1981,8 @@ function carePayload() {
   };
   v.meals = mark(care.MEALS, 'meals', '밥');
   v.snacks = mark(care.SNACKS, 'snacks', '간식');
-  v.cooked = { meals: cooked('meals'), snacks: cooked('snacks') };
+  v.plays = mark(care.PLAYS, 'plays', '놀기');
+  v.cooked = { meals: cooked('meals'), snacks: cooked('snacks'), plays: cooked('plays') };
 
   v.myMate = mateOf(cfg.species) ? cfg.pets[mateOf(cfg.species)].name : null;
   v.mates = hatchedKeys().filter((k) => k !== cfg.species).map((k) => ({
@@ -2161,17 +2165,19 @@ function cooked(field) {
   return petIds().reduce((n, k) => n + (cfg.pets[k].care[field] || 0), 0);
 }
 
-/* The dish to serve. Named dishes are checked against what has actually
+/* Which dish or game. A named one is checked against what has actually
    been learned — the window disables the rest, but the rule has to hold
-   without it. With nothing named (the hover bar has one button) it serves
-   what the pet likes, out of what you know how to make. */
-function dishFor(list, field, kind) {
+   without it. With nothing named (the hover bar's buttons) it picks what
+   the pet likes, out of what you know. */
+const LAST_KEY = { meals: 'lastMeal', snacks: 'lastSnack', plays: 'lastPlay' };
+
+function pickFor(list, field, kind) {
   const known = care.learned(list, cooked(field));
   if (kind) return known.some((f) => f.id === kind) ? kind : null;
   const c = careState();
   const fav = care.favourite(c, known);
   if (fav) return fav.id;
-  const last = field === 'meals' ? c.lastMeal : c.lastSnack;
+  const last = c[LAST_KEY[field]];
   if (known.some((f) => f.id === last)) return last;
   return known[0].id;
 }
@@ -2181,15 +2187,18 @@ function doAct(what, kind) {
   careTick(false);
   let r;
   if (what === 'feed') {
-    const dish = dishFor(care.MEALS, 'meals', kind);
-    if (!dish) return;                         // a dish nobody has learned
+    const dish = pickFor(care.MEALS, 'meals', kind);
+    if (!dish) return;                         // nobody has learned it yet
     r = care.actFeed(c, dish);
   } else if (what === 'snack') {
-    const dish = dishFor(care.SNACKS, 'snacks', kind);
+    const dish = pickFor(care.SNACKS, 'snacks', kind);
     if (!dish) return;
     r = care.actSnack(c, dish);
+  } else if (what === 'play') {
+    const game = pickFor(care.PLAYS, 'plays', kind);
+    if (!game) return;
+    r = care.actPlay(c, game);
   }
-  else if (what === 'play') r = care.actPlay(c);
   else if (what === 'walk') r = care.actWalk(c);
   else if (what === 'sleep') r = care.actSleep(c);
   else if (what === 'clean') r = care.actClean(c);
@@ -2268,7 +2277,7 @@ function placeRing() {
   if (!ringWin || ringWin.isDestroyed() || !win || win.isDestroyed()) return;
   const p = win.getBounds();
   const area = screen.getDisplayMatching(p).workArea;
-  const w = RING_W, h = RING_H;
+  const w = ringSize.w, h = ringSize.h;
   let x = Math.round(p.x + p.width / 2 - w / 2);
   x = Math.max(area.x + 4, Math.min(area.x + area.width - w - 4, x));
   // The bubble sits above the pet too, so the bar used to be hidden
@@ -2308,6 +2317,14 @@ function updateRing() {
 }
 
 ipcMain.on('ring-hover', (_e, over) => { overRing = !!over; updateRing(); });
+
+ipcMain.on('ring-size', (_e, w, h) => {
+  const nw = Math.max(RING_W, Math.min(560, w || RING_W));
+  const nh = Math.max(RING_H, Math.min(220, h || RING_H));
+  if (nw === ringSize.w && nh === ringSize.h) return;
+  ringSize = { w: nw, h: nh };
+  placeRing();
+});
 ipcMain.on('care-open', () => openCare());
 ipcMain.on('care-act', (_e, what, kind) => doAct(what, kind));
 ipcMain.on('care-clean', (_e, id) => {

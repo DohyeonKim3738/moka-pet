@@ -262,7 +262,6 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       <div class="stat" id="s-clean"><span class="lb">청결</span><span class="bar"><i></i></span><span class="pc"></span></div>
 
       <div class="acts">
-        <button id="play">놀아주기</button>
         <button id="walk">산책</button>
         <button id="train">훈련</button>
         <button id="sleep">재우기</button>
@@ -640,7 +639,9 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       list.forEach(function(f){ if (f.lock && (!next || f.need < next.need)) next = f; });
 
       var why;
-      if (full) why = '배가 불러요';
+      if (full) why = (act === 'play')
+        ? (c.fun >= 95 ? '지금은 신나 있어요' : '너무 지쳤어요')
+        : '배가 불러요';
       else if (fav) why = '입맛 · ' + (list.filter(function(f){ return f.id === fav; })[0] || {}).label +
                           '   ·   같은 걸 연달아 주면 시들해져요';
       else why = '여러 가지를 먹여 보면 입맛이 생겨요';
@@ -651,10 +652,12 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
              '<span class="why">' + why + '</span></div>';
     }
 
-    var n = c.cooked || { meals: 0, snacks: 0 };
+    var n = c.cooked || { meals: 0, snacks: 0, plays: 0 };
     host.innerHTML =
       course('밥',   c.meals  || [], c.favMeal,  c.lastMeal,  'feed',  c.hunger >= 95, n.meals) +
-      course('간식', c.snacks || [], c.favSnack, c.lastSnack, 'snack', c.hunger >= 99, n.snacks);
+      course('간식', c.snacks || [], c.favSnack, c.lastSnack, 'snack', c.hunger >= 99, n.snacks) +
+      course('놀기', c.plays  || [], c.favPlay,  c.lastPlay,  'play',
+             c.fun >= 95 || c.energy < 15, n.plays);
 
     Array.prototype.forEach.call(host.querySelectorAll('[data-eat]'), function(b){
       b.addEventListener('click', function(){
@@ -802,7 +805,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       document.getElementById('expText').textContent =
         '부화까지 ' + (c.hatch || 0) + '%   ·   쓰다듬으면 빨리 깨어나요';
       KEYS.forEach(function(k){ setStat(k, 0); });
-      ['play','walk','train','sleep','clean'].forEach(function(k){
+      ['walk','train','sleep','clean'].forEach(function(k){
         document.getElementById(k).disabled = true;
       });
       document.getElementById('traits').innerHTML = '';
@@ -867,7 +870,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     if(!this.disabled) api.restart();
   });
 
-  ['play','walk','train','sleep','clean'].forEach(function(k){
+  ['walk','train','sleep','clean'].forEach(function(k){
     document.getElementById(k).addEventListener('click', function(){ api.act(k); });
   });
 

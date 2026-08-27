@@ -4,9 +4,26 @@
 html,body{margin:0;background:transparent;overflow:hidden;
   -webkit-user-select:none;user-select:none;
   font:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",sans-serif;}
-#bar{
-  display:flex;gap:5px;padding:6px;justify-content:center;
+/* max-content, or the wrap can never measure wider than the window it is
+   already in — and the window only grows once the wrap says it needs to.
+   Laid out at its natural width, offsetWidth is the answer. */
+#wrap{padding:6px;width:max-content}
+#bar{display:flex;gap:5px;justify-content:center}
+
+/* the tray: what is on the menu, or what you could play. One click on 밥
+   used to serve whatever the pet liked and give you no say; the bar is
+   the only place most people ever press, so the choice has to be here. */
+#tray{display:none;margin-top:5px}
+#tray.on{display:block}
+#tray .row{display:flex;gap:4px;align-items:center;margin-top:4px;flex-wrap:nowrap}
+#tray .row:first-child{margin-top:0}
+#tray .lb{flex:0 0 28px;font-size:10px;font-weight:700;color:#3B322A;opacity:.65}
+#tray button{
+  width:auto;height:26px;padding:0 9px;font-size:11px;font-weight:700;
+  border-width:2px;box-shadow:2px 2px 0 rgba(59,50,42,.22);
 }
+#tray button.fav{background:#F6E2C0}
+#tray button.again{border-style:dashed;opacity:.7}
 button{
   appearance:none;cursor:pointer;
   width:40px;height:40px;padding:0;
@@ -22,6 +39,7 @@ button[hidden]{display:none}
 button .ic{display:block;font-size:15px}
 </style></head>
 <body>
+  <div id="wrap">
   <div id="bar">
     <button id="feed"><span class="ic">🍚</span>밥</button>
     <button id="play"><span class="ic">🎾</span>놀기</button>
@@ -29,19 +47,68 @@ button .ic{display:block;font-size:15px}
     <button id="egg" disabled hidden><span class="ic">🥚</span><span id="eggPct">0%</span></button>
     <button id="info"><span class="ic">ℹ️</span>정보</button>
   </div>
+  <div id="tray"></div>
+  </div>
 <script>
 (function(){
   "use strict";
   var api = window.ring || { onState:function(){}, act:function(){}, hover:function(){}, info:function(){} };
   var sleepBtn = document.getElementById('sleep');
 
-  ['feed','play','sleep'].forEach(function(k){
-    document.getElementById(k).addEventListener('click', function(){ api.act(k); });
+  var tray = document.getElementById('tray');
+  var open = null;          // 'feed' or 'play', or null when shut
+  var state = null;
+
+  /* Tell the window how much room the bar needs now. Measured rather than
+     assumed: the tray's width depends on how many dishes have been
+     learned, and Korean labels are not a fixed width. */
+  function resize(){
+    var w = document.getElementById('wrap');
+    api.size(Math.ceil(Math.max(w.offsetWidth, w.scrollWidth)),
+             Math.ceil(Math.max(w.offsetHeight, w.scrollHeight)));
+  }
+
+  function row(label, list, act, fav, last){
+    var known = (list || []).filter(function(f){ return !f.lock; });
+    if (!known.length) return '';
+    return '<div class="row"><span class="lb">' + label + '</span>' +
+      known.map(function(f){
+        var cls = f.id === fav ? ' class="fav"' : (f.id === last ? ' class="again"' : '');
+        return '<button data-pick="' + act + ':' + f.id + '"' + cls + '>' + f.label + '</button>';
+      }).join('') + '</div>';
+  }
+
+  function drawTray(){
+    if (!open || !state || state.egg) { tray.className = ''; tray.innerHTML = ''; resize(); return; }
+    tray.innerHTML = (open === 'feed')
+      ? row('밥', state.meals, 'feed', state.favMeal, state.lastMeal) +
+        row('간식', state.snacks, 'snack', state.favSnack, state.lastSnack)
+      : row('놀기', state.plays, 'play', state.favPlay, state.lastPlay);
+    tray.className = 'on';
+    Array.prototype.forEach.call(tray.querySelectorAll('[data-pick]'), function(b){
+      b.addEventListener('click', function(){
+        var v = b.getAttribute('data-pick').split(':');
+        api.act(v[0], v[1]);
+        open = null; drawTray();
+      });
+    });
+    resize();
+  }
+
+  ['feed','play'].forEach(function(k){
+    document.getElementById(k).addEventListener('click', function(){
+      open = (open === k) ? null : k;
+      drawTray();
+    });
+  });
+  document.getElementById('sleep').addEventListener('click', function(){
+    open = null; drawTray(); api.act('sleep');
   });
   document.getElementById('info').addEventListener('click', function(){ api.info(); });
 
   api.onState(function(c){
     if(!c) return;
+    state = c;
     // the same button wakes the pet, so it has to say so
     sleepBtn.innerHTML = c.sleeping
       ? '<span class="ic">☀️</span>깨우기'
@@ -57,12 +124,20 @@ button .ic{display:block;font-size:15px}
     eggBtn.hidden = !c.egg;
     if(c.egg){
       document.getElementById('eggPct').textContent = (c.hatch || 0) + '%';
+      open = null; drawTray();
       return;
     }
     document.getElementById('feed').disabled  = c.hunger >= 95;
     document.getElementById('play').disabled  = c.fun >= 95 || c.energy < 15;
     sleepBtn.disabled = !c.sleeping && c.energy >= 95;
+    if (open && document.getElementById(open).disabled) open = null;
+    drawTray();
   });
+
+  // shut the tray when the pointer leaves, or it hangs about over the desk
+  document.addEventListener('mouseleave', function(){
+    if (open) { open = null; drawTray(); }
+  }, true);
 
   // keep the bar up while the pointer is on it, not just on the pet
   document.addEventListener('mouseenter', function(){ api.hover(true); }, true);
