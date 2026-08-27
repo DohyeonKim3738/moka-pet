@@ -1360,12 +1360,33 @@ function runUpdateCheck(byHand) {
   checkUpdate(byHand);
 }
 
+/* Twice a day was far too coarse. A desktop pet is left running for days,
+   so "at launch, then in twelve hours" meant a release could sit there all
+   afternoon with nobody told — which is exactly what happened with 1.25.0.
+   Two hours costs one request; GitHub allows sixty an hour per address.
+
+   Waking from sleep is the other moment worth checking: the laptop that
+   was shut on Friday is opened on Monday, and that is when you want to
+   hear about it. Guarded so a flurry of resume events is still one call. */
+const UPDATE_EVERY = 2 * 60 * 60 * 1000;
+const UPDATE_MIN_GAP = 25 * 60 * 1000;
+let lastUpdateCheck = 0;
+
+function maybeCheckUpdate() {
+  const now = Date.now();
+  if (now - lastUpdateCheck < UPDATE_MIN_GAP) return;
+  lastUpdateCheck = now;
+  runUpdateCheck(false);
+}
+
 function startUpdates() {
   if (updateTimer) clearInterval(updateTimer);
   startWinAutoUpdate();
-  // a little after launch, then twice a day
-  setTimeout(() => runUpdateCheck(false), 20 * 1000);
-  updateTimer = setInterval(() => runUpdateCheck(false), 12 * 60 * 60 * 1000);
+  setTimeout(maybeCheckUpdate, 20 * 1000);
+  updateTimer = setInterval(maybeCheckUpdate, UPDATE_EVERY);
+  try {
+    powerMonitor.on('resume', () => setTimeout(maybeCheckUpdate, 8000));
+  } catch (e) { /* platform without power events */ }
 }
 
 /* ------------------------------------------------------------------ *
