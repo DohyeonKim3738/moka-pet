@@ -182,6 +182,41 @@
         return g;
       })()
     },
+    cloud: {
+      /* 영물이 밟고 서는 자리. 다른 바닥과 갈리는 것은 색이 아니라
+         윗변이다 — 네모난 윗변이면 그냥 흰 러그로 읽힌다.
+
+         처음에는 흰 몸통 위에 회색 점선을 얹었는데, 그러면 윗변이
+         '점선 그어진 흰 띠'가 될 뿐이었다. 봉우리 자체가 흰색이고
+         골에만 윤곽선이 있어야 뭉게뭉게해 보인다. */
+      /* 봉우리가 한 칸이면 96x10 짜리 띠 위의 점선으로만 보인다 —
+         96 도트를 가로로 늘여 놓은 자리라서, 세 칸은 솟아야 눈에 뭉게뭉게로
+         읽힌다. 그만큼 위로 올라오므로 펫은 구름을 밟는 게 아니라
+         구름에 발이 잠긴 것처럼 선다. 그게 영물답다. */
+      label: '구름 바닥', at: [0, 41],
+      art: (function () {
+        var W = 96, rows = [], y, x, line, bump;
+        for (y = 0; y < 12; y++) {
+          line = '';
+          for (x = 0; x < W; x++) {
+            var m = x % 12;                              // 12칸마다 봉우리 하나
+            bump = m >= 2 && m <= 9;
+            // 네모난 봉우리는 성벽 총안처럼 보인다 — 위로 갈수록 좁혀
+            // 둥글린다.
+            if (y === 0) line += (m >= 4 && m <= 7) ? 'A' : '.';
+            else if (y === 1) line += (m >= 3 && m <= 8) ? (m === 3 || m === 8 ? 'A' : 'H') : '.';
+            else if (y === 2) line += bump ? (m === 2 || m === 9 ? 'A' : 'H') : '.';
+            else if (y === 3) line += bump ? 'H' : 'A';   // 골의 윤곽선
+            else if (y === 11) line += 'A';               // 바닥에 닿는 그늘
+            else line += 'H';
+          }
+          rows.push(line);
+        }
+        var g = rows;
+        for (var d = 8; d < 86; d += 17) g = P.stamp(g, ['AAAA'], d, 7);  // 결
+        return g;
+      })()
+    },
     rug: {
       /* Three floors have to stay apart at a glance: grass is green, the
          red carpet is red, so the rug is blue. It was green (a shade off
@@ -237,6 +272,34 @@
             '.KKYYKK.',
             'KYYYYYYK',
             'KKKKKKKK']
+    },
+    books: {
+      /* 세 권을 어긋나게 쌓는다. 나란히 쌓으면 서랍장으로 읽힌다. */
+      label: '책더미',
+      art: ['..KKKKKKKK',
+            '..KRRRRRRK',
+            '..KKKKKKKK',
+            '.KKKKKKKK.',
+            '.KCCCCCCK.',
+            '.KKKKKKKK.',
+            'KKKKKKKK..',
+            'KGGGGGGK..',
+            'KKKKKKKK..']
+    },
+    candle: {
+      /* 불꽃이 있어야 초로 읽힌다 — 없으면 그냥 하얀 막대다. */
+      label: '촛대',
+      art: ['..y...',
+            '.yYy..',
+            '..y...',
+            '.KWK..',
+            '.KWK..',
+            '.KWK..',
+            '.KWK..',
+            '.KWK..',
+            'KKKKKK',
+            'KYYYYK',
+            'KKKKKK']
     },
     jar: {
       /* Treats in a jar: a lid, a body, and lumps you can see through it. */

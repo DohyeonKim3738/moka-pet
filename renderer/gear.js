@@ -146,6 +146,46 @@
             '..P..P..',
             '........']
     },
+    halo: {
+      /* 머리에 얹는 것이 아니라 위에 떠 있는 고리. 옆에서 본 타원이라
+         세 줄이면 충분하고, 두껍게 그리면 도넛이 된다. */
+      /* 머리 '위'에 고리를 띄우면 천사 링이 된다 — 죽은 것처럼 보인다.
+         후광은 머리 '뒤'에서 머리를 감싸는 빛이므로, 머리보다 큰 타원을
+         머리 중심에 맞춰 두르고 바깥으로 빛살을 낸다. 아래쪽 절반은
+         몸에 파묻히니 그리지 않는다. */
+      /* fromHead: 머리 윗줄을 기준으로 놓는다. 슬롯 오프셋으로 놓으면
+         머리가 낮은 게에서 후광만 허공에 남는다. -4 는 타원 중심(캔버스
+         15째 줄)이 머리 한가운데에 오게 하는 값이다. */
+      label: '후광', at: [6, 0], fromHead: -4, lock: 'spirit',
+      art: (function () {
+        var W = 36, H = 26, g = P.blank(W, H);
+        var cx = 17, cy = 15, rx = 17, ry = 16;   // 머리(26x22)보다 한 바퀴 크게
+        function ring(r1, r2, ch, from, to, step) {
+          for (var a = from; a <= to; a += step) {
+            var t = a * Math.PI / 180;
+            var x = Math.round(cx + r1 * Math.cos(t));
+            var y = Math.round(cy - r2 * Math.sin(t));
+            if (y > cy + 2 || x < 0 || x >= W || y < 0 || y >= H) continue;
+            g = P.dot(g, x, y, ch);
+          }
+        }
+        ring(rx, ry, 'Y', -12, 192, 1);           // 테두리
+        // 안쪽 옅은 겹은 위쪽만. 옆까지 두 겹으로 두르면 귀를 타고 내려와
+        // 머리에 씌운 테처럼 보인다.
+        ring(rx - 2, ry - 2, 'y', 25, 155, 1);
+        // 빛살 — 바깥으로 두 칸씩. 테두리만 있으면 접시로 읽힌다.
+        [15, 45, 75, 105, 135, 165].forEach(function (a) {
+          var t = a * Math.PI / 180;
+          for (var k = 2; k <= 3; k++) {
+            var x = Math.round(cx + (rx + k) * Math.cos(t));
+            var y = Math.round(cy - (ry + k) * Math.sin(t));
+            if (x < 0 || x >= W || y < 0 || y >= H) continue;
+            g = P.dot(g, x, y, 'Y');
+          }
+        });
+        return g;
+      })()
+    },
     crown: {
       label: '황금 왕관', at: [20, -3], lock: 'all9',
       art: ['.Y....Y.',      // points
@@ -271,6 +311,32 @@
             'KYyyYK',
             'KY.Y.K',
             'K.K.K.']      // 42  bristles, just off the floor
+    },
+    cane: {
+      /* 빗자루와 같은 규칙: 자루가 앞발 줄(y33..35)을 지나야 손잡이를
+         쥔 것으로 보인다. 위쪽 손잡이 머리는 금색이라 나무 막대가 아니라
+         '짚는 지팡이'로 읽힌다. */
+      label: '지팡이', at: [35, 22], lock: 'sage',
+      art: ['..KK..',      // 22  손잡이 머리
+            '.KYYK.',
+            'KYyyYK',
+            '.KYYK.',
+            '..KS..',      // 26  자루
+            '..KS..',
+            '..KS..',
+            '..KS..',
+            '..KS..',
+            '..KS..',
+            '..KS..',
+            '..KS..',      // 33  앞발이 여기서 감긴다
+            '..KS..',      // 34
+            '..KS..',      // 35
+            '..KS..',
+            '..KS..',
+            '..KS..',
+            '..KS..',
+            '..KS..',
+            '..KK..']      // 41  바닥에 닿는 끝
     },
     mic: {
       /* Ball on a stick. Keeping the ball two dots wider than the shaft
@@ -404,6 +470,20 @@
                         'KYYYYYYK',
                         '.KYYYYK.',
                         '..KKKK..'], 9, 7);
+        return g;
+      })
+    },
+    robe: {
+      /* 몸 슬롯은 펫 '앞'에 그려지므로 가슴을 덮으면 앞치마로 읽힌다.
+         앞치마와 갈리는 것은 허리의 띠와 가운데 여밈선이다. */
+      label: '도포', at: [11, 22], lock: 'wise',
+      art: worn(function (g) {
+        /* 몸통 끝까지 채우면 팔과 앞발을 덮어, 지팡이를 같이 들었을 때
+           손이 없이 막대만 떠 있는 것처럼 보였다. 양옆을 비워 둔다. */
+        g = P.stamp(g, garment([12, 16, 18, 18, 18, 18, 18, 18, 18, 18, 16, 12], 'C'), 4, 3);
+        g = P.vline(g, 13, 4, 6, 'K');          // 앞섶 여밈선, 허리띠 위까지
+        g = P.hline(g, 5, 10, 16, 'Y');         // 허리띠
+        g = P.hline(g, 5, 11, 16, 'K');
         return g;
       })
     },

@@ -52,6 +52,14 @@ const foodArt = ['BOWL_BASE', 'CRUMB'].map((n) => lift(n, 'one')).join('') +
   lift('BALL', 'one') + lift('PLAY_ART', 'obj') +
   lift('bowlRows', 'fn');
 
+/* 성장 사다리는 care.js 에서 끌어온다. 여기에 옮겨 적어 두면 칭호를
+   늘렸을 때 이 페이지만 옛 여섯 단계를 보여 준다. */
+const STAGES = (function () {
+  const src = R('care.js');
+  const rows = eval(src.match(/const TITLES = (\[[\s\S]*?\n\];)/)[1].replace(/;$/, ''));
+  return rows.map(([, title, stage]) => [title, stage]);
+})();
+
 /* Kept in step with TRICK_POSE in main.js: same pose, same length. */
 const TRICKS = [
   ['앉아', 'sit', 2600], ['손', 'paw', 2400], ['엎드려', 'lie', 2800],
@@ -168,8 +176,7 @@ ${libs}
   var GAMES  = ${JSON.stringify(GAMES)};
 
 ${foodArt}
-  var STAGES = [['아기','baby'],['어린이','child'],['청소년','teen'],
-                ['어른','adult'],['장로','elder'],['전설','legend']];
+  var STAGES = ${JSON.stringify(STAGES)};
   var BUILDS = [['날씬','slim'],['보통','normal'],['통통','plump'],['포동포동','heavy']];
   var NOTE = ['..K.','..K.','KKK.','KK..'];
   var Z = ['KKKK','..K.','.K..','KKKK'];

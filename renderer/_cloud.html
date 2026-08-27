@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><title>구름 바닥</title>
+<link rel="stylesheet" href="sprite.css">
+<style>body{margin:0;background:#7FA8C9;padding:16px}svg{display:block;width:100%;height:auto}</style>
+</head><body><div id="w"></div>
+<script>
+['pixel.js','gear.js','tint.js','room.js','species.js'].forEach(function(f){
+  document.write('<script src="'+f+'?'+Date.now()+Math.random()+'"><\/script>');
+});
+</script>
+<script>
+var sp=window.SPECIES.at('capybara','spirit','normal');
+var room=window.ROOM.markup({back:'none',floor:'cloud',left:'candle',right:'books'});
+document.getElementById('w').innerHTML =
+  '<svg viewBox="-125 90 490 190" style="'+window.TINT.css({fur:sp.fur,belly:sp.belly},sp)+'">'+
+  room + '<g>' + sp.markup() + '</g></svg>';
+</script></body></html>

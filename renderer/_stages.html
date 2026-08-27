@@ -3,7 +3,7 @@
 <style>
 body{margin:0;background:#26262b;font:12px -apple-system,sans-serif;color:#bbb}
 h2{color:#ddd;font-size:13px;margin:14px 12px 4px}
-.row{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 12px}
+.row{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;padding:0 12px}
 .cell{background:#1b1b1f;border-radius:8px;padding:6px;text-align:center}
 .cell svg{display:block;width:100%;height:auto}
 .n{margin-top:2px;font-size:11px}
@@ -22,10 +22,20 @@ h2{color:#ddd;font-size:13px;margin:14px 12px 4px}
 <script>
 function varsFor(sp){ return window.TINT.css({fur:sp.fur, belly:sp.belly}, sp); }
 
-/* care.js 의 STAGE_SCALE 을 미리보기용으로 옮겨 적은 값 */
-var PREVIEW_SCALE={egg:0.60,baby:0.64,child:0.76,teen:0.88,adult:1,elder:1,legend:1.06};
-var STAGES=[['egg','알'],['baby','아기'],['child','어린이'],['teen','청소년'],
-            ['adult','어른'],['elder','장로'],['전설'.length?'legend':'legend','전설']];
+/* 단계 목록과 크기는 care.js 에서 원문 그대로 끌어온다. 옮겨 적어 두면
+   칭호를 하나 늘렸을 때 이 페이지만 옛 사다리를 보여 준다 — 그러면
+   "고쳤는데 그림이 안 바뀐다"로 한참을 헤맨다. */
+var PREVIEW_SCALE = {}, STAGES = [];
+var careSrc = (function(){
+  var x = new XMLHttpRequest();
+  x.open('GET', '../care.js?' + Math.random(), false);   // 동기 — 아래 코드가 바로 쓴다
+  x.send(null);
+  return x.responseText;
+})();
+PREVIEW_SCALE = eval('(' + careSrc.match(/const STAGE_SCALE = (\{[\s\S]*?\});/)[1] + ')');
+STAGES = [['egg', '알']].concat(
+  eval(careSrc.match(/const TITLES = (\[[\s\S]*?\n\];)/)[1].replace(/;$/, ''))
+    .map(function(t){ return [t[2], t[1]]; }));
 /* ?build=slim,normal,plump,heavy 를 주면 단계 대신 체형을 나열한다 */
 var BUILDS=[['slim','날씬'],['normal','보통'],['plump','통통'],['heavy','포동포동']];
 var buildMode=new URLSearchParams(location.search).get('build');

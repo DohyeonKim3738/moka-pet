@@ -1,0 +1,104 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>늘어난 칭호</title>
+<link rel="stylesheet" href="sprite.css">
+<style>
+body{margin:0;background:#EDE9E3;font:13px -apple-system,"Apple SD Gothic Neo",sans-serif;color:#2b2b2b;padding:18px 20px 40px}
+h1{font-size:18px;margin:0 0 3px}
+p.sub{margin:0 0 18px;color:#777;font-size:12.5px}
+h2{font-size:13px;margin:24px 0 8px;color:#555}
+.ladder{display:grid;gap:8px}
+.cell{background:#fff;border-radius:10px;padding:6px 4px 4px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.cell svg{display:block;width:100%;height:auto}
+.n{font-size:11.5px;margin-top:3px;color:#444}
+.t{font-size:10.5px;color:#aaa}
+.new{color:#A8763F;font-weight:600}
+.cell.room svg{background:#DCE7F0;border-radius:6px}
+.items{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:660px}
+table{border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:10px;overflow:hidden;width:100%;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+td,th{padding:6px 10px;text-align:left;border-bottom:1px solid #EFEAE2}
+th{background:#F6F2EA;color:#666;font-weight:600}
+tr:last-child td{border-bottom:0}
+td.n2{color:#A8763F;font-weight:600}
+</style></head><body>
+<h1>장로에서 전설까지, 칭호 셋을 더 넣었습니다</h1>
+<p class="sub">어른 이후로 두 달에 한 번씩 칭호가 바뀝니다. 갈색으로 표시한 것이 이번에 새로 생긴 것입니다.</p>
+<div id="all"></div>
+<script>
+['pixel.js','gear.js','tint.js','room.js','species.js'].forEach(function(f){
+  document.write('<script src="'+f+'?'+Date.now()+Math.random()+'"><\/script>');
+});
+</script>
+<script>
+var src = (function(){ var x=new XMLHttpRequest(); x.open('GET','../care.js?'+Math.random(),false); x.send(null); return x.responseText; })();
+var TITLES = eval(src.match(/const TITLES = (\[[\s\S]*?\n\];)/)[1].replace(/;$/,''));
+var SCALE  = eval('(' + src.match(/const STAGE_SCALE = (\{[\s\S]*?\});/)[1] + ')');
+var NEW = {sage:1, wise:1, spirit:1};
+var DAYS = {baby:'0일', child:'4일', teen:'11일', adult:'27일',
+            elder:'90일', sage:'157일', wise:'225일', spirit:'283일', legend:'349일'};
+var P=window.PIXEL, all=document.getElementById('all');
+
+function pet(key, stage){
+  var sp=window.SPECIES.at(key, stage, 'normal'), s=SCALE[stage]||1;
+  var w=280/s, h=300/s;
+  var vb=(-20-(w-280)/2)+' '+(-40-(h-300))+' '+w+' '+h;
+  return '<svg viewBox="'+vb+'" style="'+window.TINT.css({fur:sp.fur,belly:sp.belly},sp)+'">'+sp.markup()+'</svg>';
+}
+function ladder(key, name){
+  var h='<h2>'+name+' — 알에서 전설까지</h2><div class="ladder" style="grid-template-columns:repeat('+TITLES.length+',1fr)">';
+  TITLES.forEach(function(t){
+    h+='<div class="cell">'+pet(key,t[2])+
+       '<div class="n'+(NEW[t[2]]?' new':'')+'">'+t[1]+'</div>'+
+       '<div class="t">'+(DAYS[t[2]]||'')+'</div></div>';
+  });
+  all.insertAdjacentHTML('beforeend', h+'</div>');
+}
+['capybara','dodam','crab'].forEach(function(k){
+  ladder(k, window.SPECIES.get(k).name+' · '+window.SPECIES.get(k).label);
+});
+
+/* 새 상품 — 소품 셋과 방 물건 셋 */
+var GEARS=[['지팡이','hand','cane','원로'],['도포','body','robe','현자'],['후광','head','halo','영물']];
+var h='<h2>새 상품 — 몸에 걸치는 것</h2><div class="items">';
+GEARS.forEach(function(g){
+  var sp=window.SPECIES.at('capybara', g[1]==='head'?'spirit':'wise', 'normal');
+  var m=sp.markup();
+  h+='<div class="cell" data-slot="'+g[1]+'" data-key="'+g[2]+'">'+
+     '<svg viewBox="-20 -60 280 330" style="'+window.TINT.css({fur:sp.fur,belly:sp.belly},sp)+'">'+m+'</svg>'+
+     '<div class="n new">'+g[0]+'</div><div class="t">'+g[3]+'</div></div>';
+});
+all.insertAdjacentHTML('beforeend', h+'</div>');
+document.querySelectorAll('.items .cell').forEach(function(c){
+  var el=c.querySelector('[data-gear="'+c.getAttribute('data-key')+'"]');
+  if(el) el.style.display='';
+});
+
+var ROOMS=[['책더미','left','books','원로'],['촛대','left','candle','현자'],['구름 바닥','floor','cloud','영물']];
+h='<h2>새 상품 — 집에 두는 것</h2><div class="items">';
+ROOMS.forEach(function(r){
+  var choice={back:'none',floor:'none',left:'none',right:'none'};
+  choice[r[1]]=r[2];
+  var svg=window.ROOM.markup(choice);
+  // 물건마다 크기가 달라 고정 뷰박스로는 점처럼 보이거나 잘린다 — 실제
+  // rect 들의 경계를 재서 맞춘다.
+  // 첫 rect 은 언제나 '펫이 딛는 바닥선'이라 무대 폭 전체를 차지한다.
+  // 그걸 넣고 재면 어떤 물건이든 480 폭 안의 점이 된다.
+  var xs=[],ys=[],first=true;
+  svg.replace(/x="(-?\d+)" y="(-?\d+)" width="(\d+)" height="(\d+)"/g,
+    function(_,x,y,w,hh){
+      if(first){ first=false; return _; }
+      xs.push(+x,+x+ +w); ys.push(+y,+y+ +hh); return _;
+    });
+  var pad=12, x0=Math.min.apply(null,xs)-pad, y0=Math.min.apply(null,ys)-pad;
+  var vb=x0+' '+y0+' '+(Math.max.apply(null,xs)-x0+pad)+' '+(Math.max.apply(null,ys)-y0+pad);
+  h+='<div class="cell room"><svg viewBox="'+vb+'">'+svg+'</svg>'+
+     '<div class="n new">'+r[0]+'</div><div class="t">'+r[3]+'</div></div>';
+});
+all.insertAdjacentHTML('beforeend', h+'</div>');
+
+/* 이정표 표 */
+var MI=[['원로까지 키우기','한 마리를 20살까지','지팡이 · 책더미','원로의 벗'],
+        ['현자까지 키우기','한 마리를 24살까지','도포 · 촛대','현자의 벗'],
+        ['영물까지 키우기','한 마리를 27살까지','후광 · 구름 바닥','영물의 벗']];
+h='<h2>새 이정표 셋 (모두 열다섯 개가 되었습니다)</h2><table><tr><th>이정표</th><th>조건</th><th>상품</th><th>칭호</th></tr>';
+MI.forEach(function(m){ h+='<tr><td class="n2">'+m[0]+'</td><td>'+m[1]+'</td><td>'+m[2]+'</td><td>'+m[3]+'</td></tr>'; });
+all.insertAdjacentHTML('beforeend', h+'</table>');
+</script></body></html>

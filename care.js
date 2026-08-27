@@ -158,9 +158,25 @@ function isNight(now, from, to) {
    stage LASTS in real days, not how big the number gets. With the curve
    below and attentive care, baby is about a week and legend is roughly a
    year — an age that arrived every few hours meant the baby was gone
-   before it was ever seen. */
+   before it was ever seen.
+
+   장로가 15살부터 29살까지를 혼자 다 가지고 있어서, 90일차에 장로가 된 뒤
+   349일차에 전설이 될 때까지 여덟 달 반 동안 아무것도 바뀌지 않았다.
+   그 구간을 넷으로 쪼갰다 — 어른 이후로는 두 달에 한 번씩 칭호가 바뀐다. */
+/* [이 나이 미만까지, 칭호, 그림 단계].
+   칭호와 그림 단계는 따로 적는다. 예전에는 STAGE_KEYS 와 순서로 짝지었는데,
+   그러면 칭호를 하나 끼워 넣는 순간 그 뒤가 전부 한 칸씩 밀려 어린이가
+   청소년 그림을 입는다. 장로 위로 셋을 더 넣으면서 갈라놓았다. */
 const TITLES = [
-  [3, '아기'], [5, '어린이'], [8, '청소년'], [15, '어른'], [30, '장로'], [Infinity, '전설']
+  [3,        '아기',   'baby'],
+  [5,        '어린이', 'child'],
+  [8,        '청소년', 'teen'],
+  [15,       '어른',   'adult'],
+  [20,       '장로',   'elder'],
+  [24,       '원로',   'sage'],
+  [27,       '현자',   'wise'],
+  [30,       '영물',   'spirit'],
+  [Infinity, '전설',   'legend']
 ];
 
 /* How big the pet is drawn at each stage, as a fraction of the size the
@@ -168,7 +184,7 @@ const TITLES = [
    slider uses — so nothing in the artwork has to be resized. */
 const STAGE_SCALE = {
   egg: 0.60, baby: 0.64, child: 0.76, teen: 0.88,
-  adult: 1, elder: 1, legend: 1.06
+  adult: 1, elder: 1, sage: 1, wise: 1.02, spirit: 1.04, legend: 1.06
 };
 function stageScale(stage) { return STAGE_SCALE[stage] || 1; }
 
@@ -434,13 +450,13 @@ function reset(c) {
 
 /* The whole ladder, derived from TITLES so the two can never disagree:
    which stage, what it is called, and the age it starts at. */
-const STAGE_KEYS = ['baby', 'child', 'teen', 'adult', 'elder', 'legend'];
+const STAGE_KEYS = TITLES.map(([, , stage]) => stage);
 
 function stageTable() {
   const out = [{ stage: 'egg', title: '알', from: null }];
   let from = 1;
-  TITLES.forEach(([limit, title], i) => {
-    out.push({ stage: STAGE_KEYS[i], title, from });
+  TITLES.forEach(([limit, title, stage]) => {
+    out.push({ stage, title, from });
     from = limit;
   });
   return out;
@@ -456,11 +472,15 @@ function nextStage(c) {
   return { stage: n.stage, title: n.title, from: n.from, ro: ro(n.title) };
 }
 
+/* 칭호 -> 그림 단계. TITLES 에서 뽑아 만든다 — 손으로 한 번 더 적어 두면
+   칭호를 늘릴 때 한쪽만 고치고 지나가게 된다. */
+const STAGE_OF_TITLE = TITLES.reduce((m, [, title, stage]) => {
+  m[title] = stage; return m;
+}, {});
+
 function stageFor(c) {
   if (c.egg) return 'egg';
-  const t = titleFor(c.age);
-  return { '아기': 'baby', '어린이': 'child', '청소년': 'teen',
-           '어른': 'adult', '장로': 'elder', '전설': 'legend' }[t] || 'adult';
+  return STAGE_OF_TITLE[titleFor(c.age)] || 'adult';
 }
 
 /* ---------- experience ---------- */

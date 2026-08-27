@@ -1,5 +1,5 @@
 /* ------------------------------------------------------------------
- * missions.js — the twelve milestones, and which prizes they hold back.
+ * missions.js — the fifteen milestones, and which prizes they hold back.
  *
  * Every milestone is a count against a target. Saying so in one place is
  * what lets the care window show how far along you are: five of these are
@@ -39,6 +39,21 @@ const LIST = [
   { id: 'all9',   title: '아홉 마리 모두 만나기', how: '알을 아홉 번 깨우기',
     prize: '황금 왕관 · 사진 벽', badge: '아홉의 친구', unit: '마리',
     goal: 9, now: (w) => w.species },
+
+  /* 어른(8살)에서 전설(30살)까지는 성실하게 돌봐도 열 달이 넘는다. 그
+     사이가 이정표 하나 없이 비어 있으면 여덟 달 반 동안 아무 일도 일어나지
+     않는다 — 칭호를 셋 늘리면서 이정표도 같이 셋 넣었다. 두 달에 하나씩이다. */
+  { id: 'sage',   title: '원로까지 키우기',       how: '한 마리를 20살까지',
+    prize: '지팡이 · 책더미', badge: '원로의 벗', unit: '살',
+    goal: 20, now: (w) => w.best((c) => c.age) },
+
+  { id: 'wise',   title: '현자까지 키우기',       how: '한 마리를 24살까지',
+    prize: '도포 · 촛대', badge: '현자의 벗', unit: '살',
+    goal: 24, now: (w) => w.best((c) => c.age) },
+
+  { id: 'spirit', title: '영물까지 키우기',       how: '한 마리를 27살까지',
+    prize: '후광 · 구름 바닥', badge: '영물의 벗', unit: '살',
+    goal: 27, now: (w) => w.best((c) => c.age) },
 
   { id: 'legend', title: '전설까지 키우기',       how: '한 마리를 30살까지',
     prize: '별 망토 · 레드카펫', badge: '전설의 주인', unit: '살',
@@ -89,37 +104,43 @@ function met(m, world) { return now(m, world) >= m.goal; }
    its lock is silent — it simply turns up in the menu for free — so the
    two tables have to be read together. */
 const GEAR_LOCKS = {
-  head: { cap: 'adult', crown: 'all9', beret: 'walk100', ribbon: 'three' },
-  hand: { bone: 'trick5', suitcase: 'walk20', broom: 'tidy', mic: 'showoff' },
-  body: { cape: 'legend', apron: 'chef', medal: 'alltricks' }
+  head: { cap: 'adult', crown: 'all9', beret: 'walk100', ribbon: 'three',
+          halo: 'spirit' },
+  hand: { bone: 'trick5', suitcase: 'walk20', broom: 'tidy', mic: 'showoff',
+          cane: 'sage' },
+  body: { cape: 'legend', apron: 'chef', medal: 'alltricks', robe: 'wise' }
 };
 
 const GEAR_PRIZES = {
   head: [['졸업 모자', 'cap'], ['황금 왕관', 'crown'],
-         ['탐험 모자', 'beret'], ['리본', 'ribbon']],
+         ['탐험 모자', 'beret'], ['리본', 'ribbon'], ['후광', 'halo']],
   hand: [['뼈다귀', 'bone'], ['여행 가방', 'suitcase'],
-         ['빗자루', 'broom'], ['마이크', 'mic']],
-  body: [['별 망토', 'cape'], ['앞치마', 'apron'], ['금메달', 'medal']]
+         ['빗자루', 'broom'], ['마이크', 'mic'], ['지팡이', 'cane']],
+  body: [['별 망토', 'cape'], ['앞치마', 'apron'], ['금메달', 'medal'],
+         ['도포', 'robe']]
 };
 
 const ROOM_LOCKS = {
   house: 'walk20', frame: 'family', rug: 'adult', grass: 'walk100',
   shelf: 'three', wall9: 'all9', carpet: 'legend', trophy: 'alltricks',
-  jar: 'chef', disc: 'trick5', bucket: 'tidy', speaker: 'showoff'
+  jar: 'chef', disc: 'trick5', bucket: 'tidy', speaker: 'showoff',
+  books: 'sage', candle: 'wise', cloud: 'spirit'
 };
 
 /* Must stay in step with renderer/room.js. */
 const SIDE_ITEMS = [
   ['밥그릇', 'bowl'], ['물그릇', 'water'], ['뼈다귀', 'bone'], ['공', 'ball'],
   ['화분', 'plant'], ['인형', 'plush'], ['원반', 'disc'], ['양동이', 'bucket'],
-  ['스피커', 'speaker'], ['트로피', 'trophy'], ['간식 통', 'jar']
+  ['스피커', 'speaker'], ['트로피', 'trophy'], ['간식 통', 'jar'],
+  ['책더미', 'books'], ['촛대', 'candle']
 ];
 
 const ROOM_SLOTS = [
   ['back',  '뒤쪽 배경', [['창문', 'window'], ['강아지집', 'house'],
                           ['가족 액자', 'frame'], ['선반', 'shelf'], ['사진 벽', 'wall9']]],
   ['floor', '바닥',      [['방석', 'cushion'], ['타일 바닥', 'tiles'], ['러그', 'rug'],
-                          ['잔디 바닥', 'grass'], ['레드카펫', 'carpet']]],
+                          ['잔디 바닥', 'grass'], ['구름 바닥', 'cloud'],
+                          ['레드카펫', 'carpet']]],
   ['left',  '왼쪽 소품', SIDE_ITEMS],
   ['right', '오른쪽 소품', SIDE_ITEMS]
 ];
@@ -159,5 +180,5 @@ function pickable(rows, slot, key) {
 module.exports = {
   LIST, byId, title, now, met,
   gearSlots, roomSlots, pickable,
-  GEAR_LOCKS, ROOM_LOCKS, ROOM_SLOTS
+  GEAR_LOCKS, GEAR_PRIZES, ROOM_LOCKS, ROOM_SLOTS
 };

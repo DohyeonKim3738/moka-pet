@@ -318,7 +318,13 @@
     });
   }
 
-  function slotGroup(kind, off, fat) {
+  /* headY: 머리 윗줄의 y. 머리 슬롯에만 넘어온다.
+     보통 소품은 슬롯 오프셋(gearOffset)으로 놓는데, 그 값은 '머리 위에
+     얹는 작은 것'을 기준으로 맞춰져 있다. 후광처럼 머리를 통째로 감싸는
+     것은 캔버스 한가운데가 머리 중심에 와야 해서 같은 오프셋이 맞지 않는다
+     — 게는 머리가 열 칸 아래에 있어 후광만 허공에 떴다.
+     `fromHead: n` 을 단 소품은 슬롯 오프셋 대신 머리 y 를 기준으로 놓는다. */
+  function slotGroup(kind, off, fat, headY) {
     var items = (root.GEAR && root.GEAR.items[kind]) || {};
     var id = (kind === 'head') ? 'prop' : ('slot-' + kind);
     var html = '<g id="' + id + '">';
@@ -331,8 +337,11 @@
       // says "this is a thing, not cloth" — draw it at its own size.
       var f = (it.stretch === false) ? 0 : (fat || 0);
       var shift = Math.round(f / 2);
+      var y = (it.fromHead !== undefined && headY !== undefined && headY !== null)
+        ? headY + it.fromHead
+        : it.at[1] + off[1];
       html += '<g data-gear="' + key + '" style="display:none">' +
-              encode(widen(it.art, f), it.at[0] + off[0] - shift, it.at[1] + off[1]) +
+              encode(widen(it.art, f), it.at[0] + off[0] - shift, y) +
               '</g>';
     });
     return html + '</g>';
@@ -395,7 +404,7 @@
           tearGroup(sp.tearAt || [eyes.l[0], eyes.l[1] + eyes.size[1]]) +
           // ...and the back of the head, which covers the face and the eyes
           backLayer('backHead', p.head) +
-          slotGroup('head', off('head')) +
+          slotGroup('head', off('head'), 0, p.head ? p.head.y : null) +
         '</g></g>' +
       '</g>';
 

@@ -7,6 +7,11 @@ has now cost two rounds of "I changed it and the page is identical" — once
 on the trick CSS, once on the back-of-the-head sprite, where the page ran a
 stale species.js and silently fell back to the front-facing art.
 
+Serves the REPO ROOT, not renderer/, so a harness can reach care.js and
+missions.js with ../ — the growth-stage page lifts the title ladder out of
+care.js rather than keeping its own copy of it. Pages therefore live at
+/renderer/_name.html.
+
     python3 scripts/preview-server.py [port]
 """
 import sys
@@ -33,6 +38,6 @@ class NoCache(SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8731
-    handler = functools.partial(NoCache, directory='renderer')
-    print('renderer/ on http://127.0.0.1:%d  (no cache)' % port)
+    handler = functools.partial(NoCache, directory='.')
+    print('repo root on http://127.0.0.1:%d/renderer/  (no cache)' % port)
     ThreadingHTTPServer(('127.0.0.1', port), handler).serve_forever()

@@ -234,8 +234,21 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
               eyes: { size: [5, 5], l: [15, 13], r: [28, 13], glint: [1, 1] } },
     teen:   { trim: 2 },
     adult:  { trim: 0 },
+    /* 장로 위로 넷은 표식이 쌓인다. 전설이 현자보다 덜 늙어 보이면
+       사다리가 거꾸로 읽히므로, 뒤로 갈수록 앞의 것을 전부 가진다.
+       표식은 전부 머리에만 찍는다 — 주둥이 생김새는 아홉 종이 제각각이라
+       눈썹을 고른 것과 같은 이유다.
+
+       한 단계에 한 가지씩, 그리고 서로 '종류가' 다르게 붙인다. 처음에는
+       이마 주름을 넣었는데 눈썹과 같은 흰 가로줄이라 둘을 겹쳐 놓으면
+       머리띠로 읽혔다 — 흰 줄을 더 긋는 것으로는 단계가 갈리지 않는다. */
     elder:  { trim: 0, brows: true, headDrop: 1 },
-    legend: { trim: 0, brows: true, spark: true, crown: true, headDrop: 1 }
+    sage:   { trim: 0, brows: true, temples: true, headDrop: 1 },
+    wise:   { trim: 0, brows: true, temples: true, mark: true, headDrop: 1 },
+    spirit: { trim: 0, brows: true, temples: true, mark: true,
+              spark: true, headDrop: 1 },
+    legend: { trim: 0, brows: true, temples: true, mark: true,
+              spark: true, crown: true, headDrop: 1 }
   };
 
   /* Overall size per stage lives in care.js, because the window is what
@@ -265,7 +278,11 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
     // stamp() works in head-local rows; eye coordinates are absolute, so
     // the head's own y has to come off or the brow lands under the eye
     // and the eye, drawn later, hides it.
-    var browY = eyes.l[1] - head.y - 3;
+    /* 게는 눈이 더듬이 위에 달려 있어 eyes.l[1] 이 머리보다 위다 —
+       그대로 빼면 browY 가 -13 이 나오고, 눈썹도 관자놀이도 캔버스 밖에
+       찍혀 사라진다. 그래서 게는 장로가 되어도 어른과 똑같아 보였다.
+       머리 안으로 끌어들여 두면 아홉 종 모두에서 표식이 보인다. */
+    var browY = Math.max(2, Math.min(eyes.l[1] - head.y - 3, head.rows.length - 5));
     var ch = browChar(fur);
     var brow = ['.' + ch + ch + ch + ch + '.', ch + ch + ch + ch + ch + ch];
     [eyes.l[0], eyes.r[0]].forEach(function (ex) {
@@ -273,8 +290,34 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
     });
     var w = 0;
     rows.forEach(function (r) { if (r.length > w) w = r.length; });
+    var mid = Math.round(w / 2);
+
+    /* 자리는 서로 겹치지 않게 나눠 쓴다. 눈썹은 browY 두 줄, 이마 표식은
+       그 바로 위 세 줄(browY-3..browY-1), 왕관은 머리 꼭대기 세 줄.
+       카피바라 기준으로 눈썹 6·7행, 표식 3~5행, 왕관 0~2행이라 붙지 않는다. */
+
+    // 관자놀이가 세었다 — 머리 양옆, 윤곽선 바로 안쪽. 실루엣은 그대로고
+    // 눈썹과 방향이 달라서(세로) 한눈에 다른 표식으로 읽힌다.
+    if (o.temples) {
+      // 가장자리 한 칸은 윤곽선이라 거기 찍으면 묻힌다. 두 칸 안쪽,
+      // 털 위에 세로로 긋는다.
+      for (var t = 0; t < 5; t++) {
+        rows = P.stamp(rows, [ch], 2, browY + t - 1);
+        rows = P.stamp(rows, [ch], w - 3, browY + t - 1);
+      }
+    }
+    /* 미간의 표식 — 현자부터. 털색이 아니라 금색이라 '나이'가 아니라
+       '지위'로 읽히고, 왕관과 같은 금색이라 사다리의 끝을 미리 비춘다.
+
+       눈썹 '위'가 아니라 눈썹 '사이'에 둔다. 위에 두면 머리가 낮은 종
+       (게는 머리가 12줄뿐)에서 왕관 자리와 겹치거나 캔버스 밖으로 밀려
+       아예 안 찍혔다 — 게는 원로와 현자가 똑같아 보였다. 두 눈썹 사이는
+       어느 종에서나 비어 있는 자리다. */
+    if (o.mark) {
+      rows = P.stamp(rows, ['.Y.', 'YyY', '.Y.'], mid - 2, browY);
+    }
     if (o.crown) {
-      rows = P.stamp(rows, ['Y.Y.Y', 'YYYYY', 'yYYYy'], Math.round(w / 2) - 3, 0);
+      rows = P.stamp(rows, ['Y.Y.Y', 'YYYYY', 'yYYYy'], mid - 3, 0);
     }
     if (o.spark) rows = P.stamp(rows, ['.y.', 'yYy', '.y.'], 1, 2);
     return { x: head.x, y: head.y, rows: rows };

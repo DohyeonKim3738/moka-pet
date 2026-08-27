@@ -135,9 +135,21 @@ console.log('# 성장 단계표');
   const t = care.stageTable();
   ok('알에서 시작해 전설로 끝난다',
      t[0].stage === 'egg' && t[t.length - 1].stage === 'legend', t.map(x => x.stage));
-  ok('시작 나이가 TITLES 와 어긋나지 않는다',
-     t[1].from === 1 && t[2].from === 3 && t[4].from === 8 && t[6].from === 30,
-     t.map(x => x.from));
+  /* 사다리 전체를 한 줄로 못 박는다. 예전에는 t[1]/t[2]/t[4]/t[6] 처럼
+     자리를 짚어 봤는데, 칭호를 가운데 하나 끼우면 짚던 자리가 밀려
+     "8살이 어른"이 아니라 엉뚱한 칸을 보면서도 통과한다. */
+  const ladder = t.map((x) => x.title + ':' + x.stage + ':' + x.from).join(' ');
+  ok('사다리가 통째로 그대로다',
+     ladder === '알:egg:null 아기:baby:1 어린이:child:3 청소년:teen:5 ' +
+                '어른:adult:8 장로:elder:15 원로:sage:20 현자:wise:24 ' +
+                '영물:spirit:27 전설:legend:30', ladder);
+  ok('칭호마다 그림 단계가 다르다',
+     new Set(t.map((x) => x.stage)).size === t.length);
+  [[7, '청소년'], [8, '어른'], [14, '어른'], [15, '장로'], [19, '장로'],
+   [20, '원로'], [23, '원로'], [24, '현자'], [26, '현자'],
+   [27, '영물'], [29, '영물'], [30, '전설']].forEach(([age, want]) => {
+    ok(age + '살은 ' + want, care.titleFor(age) === want, care.titleFor(age));
+  });
 
   const e = care.blank();
   ok('알의 다음은 아기', care.nextStage(e).stage === 'baby');
@@ -787,7 +799,7 @@ console.log('# 가족 관계');
 console.log('# 이정표 표');
 {
   const M = require('../missions.js');
-  ok('열둘', M.LIST.length === 12, M.LIST.length);
+  ok('열다섯', M.LIST.length === 15, M.LIST.length);
   const ids = M.LIST.map((m) => m.id);
   ok('id 가 겹치지 않는다', new Set(ids).size === ids.length);
   ok('전부 목표와 세는 법이 있다',
@@ -836,21 +848,35 @@ console.log('# 미션 상품은 잠겨 있어야 한다');
   // main.js gearSlots()/ROOM_LOCKS decide what the menu offers; if an item
   // loses its `lock` it silently becomes free for everyone. That is exactly
   // what happened when the broom art was rewritten.
-  const WANT = {
-    cap: 'adult', beret: 'walk100', ribbon: 'three', crown: 'all9',
-    bone: 'trick5', broom: 'tidy', mic: 'showoff', suitcase: 'walk20',
-    apron: 'chef', medal: 'alltricks', cape: 'legend'
-  };
-  const find = (key) => {
-    let hit = null;
-    window.GEAR.slots.forEach((s) => { if (window.GEAR.items[s][key]) hit = window.GEAR.items[s][key]; });
-    return hit;
-  };
-  Object.keys(WANT).forEach((k) => {
-    const it = find(k);
-    ok('상품 ' + k + ' 는 ' + WANT[k] + ' 로 잠겨 있다', !!it && it.lock === WANT[k],
-       it ? String(it.lock) : '없음');
-  });
+  /* 잠금은 두 곳에 적혀 있다 — 그림 옆(gear.js 의 lock:)과 이정표 옆
+     (missions.js 의 GEAR_LOCKS). 여기서 기대값을 손으로 한 번 더 적어 두면
+     상품을 새로 넣을 때 세 곳을 고쳐야 하고, 한 곳을 빠뜨린 채 통과한다.
+     그래서 베끼지 않고 두 표를 서로 대조한다. */
+  const MI = require('../missions.js');
+  const mismatch = [];
+  window.GEAR.slots.forEach((s) => Object.keys(window.GEAR.items[s]).forEach((k) => {
+    const a = window.GEAR.items[s][k].lock || null;
+    const b = (MI.GEAR_LOCKS[s] || {})[k] || null;
+    if (a !== b) mismatch.push(s + '.' + k + ' gear=' + a + ' missions=' + b);
+  }));
+  ok('그림의 잠금과 이정표의 잠금이 같다', mismatch.length === 0, mismatch.join(', '));
+
+  const missingPrize = [];
+  Object.keys(MI.GEAR_LOCKS).forEach((s) => Object.keys(MI.GEAR_LOCKS[s]).forEach((k) => {
+    if (!window.GEAR.items[s][k]) missingPrize.push(s + '.' + k);
+    if (!(MI.GEAR_PRIZES[s] || []).some(([, key]) => key === k)) {
+      missingPrize.push(s + '.' + k + '(메뉴에 없음)');
+    }
+  }));
+  ok('잠긴 상품은 그려져 있고 메뉴에도 오른다', missingPrize.length === 0,
+     missingPrize.join(', '));
+
+  const ids = new Set(MI.LIST.map((m) => m.id));
+  const orphan = [];
+  Object.keys(MI.GEAR_LOCKS).forEach((s) =>
+    Object.values(MI.GEAR_LOCKS[s]).forEach((v) => { if (!ids.has(v)) orphan.push(v); }));
+  Object.values(MI.ROOM_LOCKS).forEach((v) => { if (!ids.has(v)) orphan.push(v); });
+  ok('없는 이정표로 잠근 것은 없다', orphan.length === 0, orphan.join(', '));
   // Anything held must actually be in the paw. The paw is at y33..35; a
   // broom drawn entirely above it left the pet cupping the brush head, and
   // the bone was floating clear of the hand for the same reason.
@@ -868,11 +894,10 @@ console.log('# 미션 상품은 잠겨 있어야 한다');
   ok('손에 드는 가족 액자는 없다', !window.GEAR.items.hand.photo);
 
   // and nothing else may carry a lock main.js does not know about
-  const known = new Set(Object.values(WANT));
   const stray = [];
   window.GEAR.slots.forEach((s) => Object.keys(window.GEAR.items[s]).forEach((k) => {
     const it = window.GEAR.items[s][k];
-    if (it.lock && !known.has(it.lock)) stray.push(k + ':' + it.lock);
+    if (it.lock && !ids.has(it.lock)) stray.push(k + ':' + it.lock);
   }));
   ok('메뉴가 모르는 잠금은 없다', stray.length === 0, stray.join(','));
 }
