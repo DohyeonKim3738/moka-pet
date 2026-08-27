@@ -836,12 +836,10 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     drawTraits(c);
     drawTricks(c);
 
-    document.getElementById('feed').disabled  = c.hunger >= 95;
-    document.getElementById('snack').disabled = c.hunger >= 99;
+    // 밥·간식·놀기는 종류 줄로 옮겨 갔다 — 그쪽에서 잠근다
     document.getElementById('walk').disabled  = c.energy < 30 || c.fun >= 98;
     document.getElementById('train').disabled =
       c.age < 3 || !c.nextTrick || c.energy < 25 || c.fun < 30;
-    document.getElementById('play').disabled  = c.fun >= 95 || c.energy < 15;
     document.getElementById('clean').disabled = !c.poops || !c.poops.length;
     var sleep = document.getElementById('sleep');
     sleep.textContent = c.sleeping ? '깨우기' : '재우기';

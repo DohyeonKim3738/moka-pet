@@ -709,6 +709,42 @@ console.log('# 재주 보여주기');
   ok('지치면 거절한다', !care.actPerform(tired, care.TRICKS[0]).ok);
 }
 
+console.log('# 화면이 없는 요소를 만지지 않는다');
+{
+  /* The care window renders inside one big onState handler. A
+     getElementById that returns null throws, and everything AFTER the
+     throw silently never runs — which is how removing the 밥/간식/놀기
+     buttons left four checkboxes stuck unchecked and the hint blank.
+     Nothing catches that: the smoke check exercises main.js, and the
+     renderer has no test at all. So check statically that every id the
+     script reaches for is an id the markup actually has. */
+  const pages = ['care.html', 'ring.html', 'index.html', 'agenda.html', 'settings.html', 'bubble.html'];
+  pages.forEach((page) => {
+    let html;
+    try { html = fs.readFileSync(path.join(__dirname, '..', 'renderer', page), 'utf8'); }
+    catch (e) { return; }
+
+    const have = new Set();
+    for (const m of html.matchAll(/\sid="([A-Za-z][\w-]*)"/g)) have.add(m[1]);
+
+    // ids the script asks for by literal name
+    const want = new Set();
+    for (const m of html.matchAll(/getElementById\(\s*['"]([A-Za-z][\w-]*)['"]\s*\)/g)) want.add(m[1]);
+    for (const m of html.matchAll(/querySelector\(\s*['"]#([A-Za-z][\w-]*)['"]\s*\)/g)) want.add(m[1]);
+
+    const missing = [...want].filter((k) => !have.has(k));
+    ok(page + ' 의 id 참조가 전부 존재한다', missing.length === 0, missing.join(', '));
+
+    // and no id twice, or getElementById quietly picks the first
+    const seen = {}, dupes = [];
+    for (const m of html.matchAll(/\sid="([A-Za-z][\w-]*)"/g)) {
+      seen[m[1]] = (seen[m[1]] || 0) + 1;
+      if (seen[m[1]] === 2) dupes.push(m[1]);
+    }
+    ok(page + ' 에 중복 id 가 없다', dupes.length === 0, dupes.join(', '));
+  });
+}
+
 console.log('# 가족 관계');
 {
   const family = require('../family.js');
