@@ -34,6 +34,7 @@ button{
 button:hover{background:#F6E2C0}
 button:active{box-shadow:1px 1px 0 rgba(59,50,42,.22);transform:translate(2px,2px)}
 button:disabled{opacity:.45;cursor:default}
+.row .no{font-size:10px;color:#A6957F;margin-left:4px;align-self:center}
 button[hidden]{display:none}
 #egg{opacity:1;font-size:10px}
 button .ic{display:block;font-size:15px}
@@ -68,22 +69,30 @@ button .ic{display:block;font-size:15px}
              Math.ceil(Math.max(w.offsetHeight, w.scrollHeight)));
   }
 
-  function row(label, list, act, fav, last){
+  /* why: 지금 이 줄을 못 하는 이유(없으면 null).
+     ★낱개 음식을 잠그지 않았더니, 배가 불러 밥이 막힌 상태에서도 「한식」이
+     눌렸다. 눌러도 아무 일이 없고 설명도 없다 — 고장으로 읽힌다.
+     밥과 간식은 배부른 기준이 서로 달라서(95 / 99) 한쪽만 막히는 구간이
+     실제로 생긴다. 줄마다 따로 잠근다. */
+  function row(label, list, act, fav, last, why){
     var known = (list || []).filter(function(f){ return !f.lock; });
     if (!known.length) return '';
     return '<div class="row"><span class="lb">' + label + '</span>' +
       known.map(function(f){
         var cls = f.id === fav ? ' class="fav"' : (f.id === last ? ' class="again"' : '');
-        return '<button data-pick="' + act + ':' + f.id + '"' + cls + '>' + f.label + '</button>';
-      }).join('') + '</div>';
+        return '<button data-pick="' + act + ':' + f.id + '"' + cls +
+               (why ? ' disabled title="' + why + '"' : '') + '>' + f.label + '</button>';
+      }).join('') +
+      (why ? '<span class="no">' + why + '</span>' : '') + '</div>';
   }
 
   function drawTray(){
     if (!open || !state || state.egg) { tray.className = ''; tray.innerHTML = ''; resize(); return; }
+    var no = state.blocked || {};
     tray.innerHTML = (open === 'feed')
-      ? row('밥', state.meals, 'feed', state.favMeal, state.lastMeal) +
-        row('간식', state.snacks, 'snack', state.favSnack, state.lastSnack)
-      : row('놀기', state.plays, 'play', state.favPlay, state.lastPlay);
+      ? row('밥', state.meals, 'feed', state.favMeal, state.lastMeal, no.feed) +
+        row('간식', state.snacks, 'snack', state.favSnack, state.lastSnack, no.snack)
+      : row('놀기', state.plays, 'play', state.favPlay, state.lastPlay, no.play);
     tray.className = 'on';
     Array.prototype.forEach.call(tray.querySelectorAll('[data-pick]'), function(b){
       b.addEventListener('click', function(){
@@ -137,8 +146,16 @@ button .ic{display:block;font-size:15px}
       b.disabled = !!reason;
       b.title = reason || '';
     }
-    // 밥 버튼은 밥과 간식을 함께 여는 자리다 — 둘 다 막혔을 때만 잠근다
+    /* 밥 버튼은 밥과 간식을 함께 여는 자리라 둘 다 막혔을 때만 잠근다.
+       다만 한쪽만 막힌 구간(배고픔 95~99)이 실제로 있어서, 그냥 열어 두면
+       "밥이 안 되는데 밥 버튼이 켜져 있다"로 읽힌다. 그럴 때는 무엇이
+       막혔고 무엇이 되는지 버튼에 적어 둔다. */
     gate('feed', (why.feed && why.snack) ? why.feed : null);
+    if (why.feed && !why.snack) {
+      document.getElementById('feed').title = '밥은 ' + why.feed + ' — 간식은 아직 괜찮아요';
+    } else if (why.snack && !why.feed) {
+      document.getElementById('feed').title = '간식은 ' + why.snack + ' — 밥은 괜찮아요';
+    }
     gate('play', why.play);
     gate('sleep', why.sleep);
     if (c.sleeping) {

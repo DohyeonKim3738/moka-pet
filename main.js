@@ -956,82 +956,12 @@ function buildMenu() {
       }))
     },
     { type: 'separator' },
-    {
-      label: `${sp.label} 털 색`,
-      submenu: sp.furs.map(([label, hex]) => ({
-        label, type: 'radio', checked: pet.fur.toLowerCase() === hex.toLowerCase(),
-        click: () => setPetField('fur', hex)
-      }))
-    },
-    {
-      label: '소품',
-      submenu: gearSlots().map(([slot, slotLabel, items]) => ({
-        label: slotLabel,
-        submenu: [['없음', 'none']].concat(items).map(([label, v, locked]) => ({
-          label: locked ? label + ' — 「' + locked + '」' : label,
-          type: 'radio', enabled: !locked,
-          checked: ((pet.props && pet.props[slot]) || 'none') === v,
-          click: () => setPetSlot(slot, v)
-        }))
-      }))
-    },
-    {
-      label: '집',
-      submenu: [
-        {
-          label: '집에서 지내기', type: 'checkbox',
-          checked: !!(cfg.home && cfg.home.enabled),
-          click: () => setHome(!(cfg.home && cfg.home.enabled))
-        },
-        { type: 'separator' }
-      ].concat(roomSlots().map(([slot, slotLabel, items]) => ({
-        label: slotLabel,
-        submenu: [['없음', 'none']].concat(items).map(([label, v, locked]) => ({
-          label: locked ? label + ' — 「' + locked + '」' : label,
-          type: 'radio', enabled: !locked,
-          checked: ((pet.room && pet.room[slot]) || 'none') === v,
-          click: () => setRoomSlot(slot, v)
-        }))
-      }))).concat([
-        { type: 'separator' },
-        {
-          label: '집 비우기',
-          click: () => {
-            currentPet().room = { back: 'none', floor: 'none', left: 'none', right: 'none' };
-            pushConfig();
-          }
-        }
-      ])
-    },
-    {
-      label: '대표 칭호',
-      submenu: (function () {
-        const won = MISSIONS.filter((m) => missionDone(m.id));
-        if (!won.length) return [{ label: '아직 딴 칭호가 없어요', enabled: false }];
-        return [{
-          label: '달지 않기', type: 'radio', checked: !cfg.missions.badge,
-          click: () => setBadge('')
-        }, { type: 'separator' }].concat(won.map((m) => ({
-          label: m.badge, type: 'radio', checked: cfg.missions.badge === m.id,
-          click: () => setBadge(m.id)
-        })));
-      })()
-    },
-    {
-      label: '소품 모두 벗기기',
-      click: () => {
-        const p = currentPet();
-        p.props = { head: 'none', eyes: 'none', hand: 'none', body: 'none' };
-        pushConfig();
-      }
-    },
-    {
-      label: '눈',
-      submenu: EYES.map(([label, v]) => ({
-        label, type: 'radio', checked: pet.eyes === v,
-        click: () => setPetField('eyes', v)
-      }))
-    },
+    /* 털 색 · 눈 · 소품 · 집 · 대표 칭호는 돌보기 창의 「꾸미기」 탭으로
+       옮겼다. 같은 것을 두 군데서 고르게 두면 한쪽만 고쳐 놓고 지나가게
+       되고, 이정표가 "집 꾸미기 · 좌우 소품에 있어요" 라고 알려 준 자리와
+       실제로 고르는 자리가 서로 다른 창이었다.
+       ★잘라낸 자리에 정의가 섞여 있었는지는 npm run smoke 가 본다 —
+       메뉴를 실제로 만들어 보고 첫 예외에서 멈춘다(1.24.0 사고 이후). */
     { type: 'separator' },
     { label: '돌보기…', accelerator: 'CommandOrControl+K', click: () => openCare() },
     { label: '설정…', accelerator: 'CommandOrControl+,', click: () => openSettings() },
@@ -1250,8 +1180,12 @@ function checkMissions() {
 
   won.forEach((m) => {
     cfg.missions.done.push(m.id);
+    // 무엇을 받았는지만 알려 주면 어느 메뉴를 열어야 하는지 모른다
+    const spots = missions.prizesFor(m.id)
+      .map((p) => p.label + ' → ' + p.where).join(', ');
     care.note(careState(), 'mission',
-      '「' + m.title + '」 달성 — ' + m.prize + care.eul(m.prize) + ' 받았어요');
+      '「' + m.title + '」 달성 — ' + m.prize + care.eul(m.prize) + ' 받았어요' +
+      (spots ? ' (' + spots + ')' : ''));
   });
   if (!badgeLabel()) cfg.missions.badge = won[0].id;   // the first one goes on by itself
   saveConfig();
@@ -2034,8 +1968,20 @@ function carePayload() {
                           currentPet().room || {}),
     slots: roomSlots().map(([slot, label, items]) => ({ slot, label, items }))
   };
+  // 털 색과 소품은 트레이 메뉴에서 돌보기 창의 「꾸미기」 탭으로 옮겼다 —
+  // 같은 것을 두 군데서 고르게 두면 한쪽만 고쳐 놓고 지나가게 된다.
+  v.gear = {
+    choice: Object.assign({ head: 'none', eyes: 'none', hand: 'none', body: 'none' },
+                          currentPet().props || {}),
+    slots: gearSlots().map(([slot, label, items]) => ({ slot, label, items }))
+  };
+  v.furs = (SPECIES.find((x) => x.key === (currentPet().species || cfg.species)) || {}).furs || [];
+  v.fur = currentPet().fur;
+  v.eyesPick = currentPet().eyes || 'basic';
+  v.eyesList = EYES;
   v.missions = MISSIONS.map((m) => ({
     id: m.id, title: m.title, how: m.how, prize: m.prize, badge: m.badge,
+    prizes: missions.prizesFor(m.id),
     done: missionDone(m.id), now: missionNow(m), goal: m.goal, unit: m.unit
   }));
   v.badges = MISSIONS.filter((m) => missionDone(m.id)).map((m) => ({ id: m.id, name: m.badge }));
@@ -2508,6 +2454,25 @@ ipcMain.on('away-set', (_e, on) => {
   cfg.away.enabled = !!on;
   if (!cfg.away.enabled && awayNapping) wakeFromAway();
   saveConfig();
+  pushCare();
+});
+
+ipcMain.on('care-prop', (_e, slot, value) => { setPetSlot(slot, value); pushCare(); });
+ipcMain.on('care-props-clear', () => {
+  currentPet().props = { head: 'none', eyes: 'none', hand: 'none', body: 'none' };
+  pushConfig();
+  pushCare();
+});
+ipcMain.on('care-fur', (_e, hex) => {
+  const list = (SPECIES.find((x) => x.key === (currentPet().species || cfg.species)) || {}).furs || [];
+  // 목록에 없는 색은 받지 않는다 — 창에서 온 값이라도 그대로 믿지 않는다
+  if (!list.some(([, v]) => String(v).toLowerCase() === String(hex).toLowerCase())) return;
+  setPetField('fur', hex);
+  pushCare();
+});
+ipcMain.on('care-eyes', (_e, v) => {
+  if (!EYES.some(([, k]) => k === v)) return;
+  setPetField('eyes', v);
   pushCare();
 });
 

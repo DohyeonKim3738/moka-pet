@@ -910,6 +910,26 @@ console.log('# 왜 지금 못 하는가');
   ok('세 살 전에는 훈련이 막힌다', b.train === '아직 어려요', b.train);
   ok('재주를 모르면 그렇게 말한다', b.show === '아직 배운 재주가 없어요', b.show);
 
+  /* ★밥과 간식은 배부른 기준이 다르다(95 / 99). 그 사이에는 밥만 막히고
+     간식은 되는 구간이 생긴다 — 실제로 여기서, 막대의 밥 버튼은 켜져 있고
+     트레이의 「한식」도 눌리는데 눌러도 아무 일이 없었다.
+     그러니 이 구간이 정말 존재한다는 것을 못 박아 둔다. */
+  const between = care.blank(); care.hatch(between);
+  between.hunger = 97; between.fun = 50; between.energy = 80;
+  const bb = care.blocked(between);
+  ok('배고픔 97 이면 밥은 막힌다', bb.feed === '배가 불러요', String(bb.feed));
+  ok('배고픔 97 이어도 간식은 된다', bb.snack === null, String(bb.snack));
+  const full = care.blank(); care.hatch(full);
+  full.hunger = 99.5;
+  ok('배고픔 99.5 면 간식도 막힌다',
+     care.blocked(full).snack === '더는 못 먹어요', String(care.blocked(full).snack));
+
+  // 막대는 줄마다 따로 잠가야 한다 — 낱개를 안 잠그면 눌러도 아무 일이 없다
+  const ringSrc = require('fs').readFileSync(
+    require('path').join(__dirname, '..', 'renderer', 'ring.html'), 'utf8');
+  ok('막대 트레이가 줄마다 이유를 받는다', /row\('밥',[^)]*no\.feed\)/.test(ringSrc));
+  ok('막대 트레이가 낱개를 잠근다', /why \? ' disabled title=/.test(ringSrc));
+
   // ★재 보는 것이 상태를 바꾸면 화면을 그릴 때마다 펫이 밥을 먹는다
   const before = JSON.stringify(c);
   care.blocked(c);
@@ -944,6 +964,19 @@ console.log('# 이정표 표');
 {
   const M = require('../missions.js');
   ok('열다섯', M.LIST.length === 15, M.LIST.length);
+
+  /* 상품 이름은 이정표 옆에 손으로 적혀 있고, 어느 슬롯인지는 잠금표에
+     들어 있다. 둘이 어긋나면 "받았다는데 그런 물건이 없다"가 된다.
+     잠금표에서 뒤집어 읽은 이름이 손으로 적은 문구와 같아야 한다. */
+  M.LIST.forEach((m) => {
+    const got = M.prizesFor(m.id);
+    ok(m.title + ' 의 상품이 표와 일치한다',
+       got.map((p) => p.label).join(' · ') === m.prize,
+       got.map((p) => p.label).join(' · ') + ' vs ' + m.prize);
+    ok(m.title + ' 의 상품마다 있을 곳이 있다',
+       got.length > 0 && got.every((p) => /소품 · |집 꾸미기 · /.test(p.where)),
+       JSON.stringify(got.map((p) => p.where)));
+  });
   const ids = M.LIST.map((m) => m.id);
   ok('id 가 겹치지 않는다', new Set(ids).size === ids.length);
   ok('전부 목표와 세는 법이 있다',

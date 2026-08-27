@@ -87,6 +87,43 @@ const LIST = [
     goal: 3, now: (w) => w.hatched }
 ];
 
+/* ---------- 상품이 어디에 있는가 ----------
+ * 이정표를 달성해 상품을 받아도, 그게 트레이의 소품인지 집 꾸미기의
+ * 물건인지 알 길이 없었다. "졸업 모자 · 러그를 받았어요" 만 보고
+ * 어느 메뉴를 열어야 하는지 찾아 헤매게 된다.
+ *
+ * 이름과 자리는 이미 잠금표에 다 있다 — 그걸 뒤집어 읽으면 된다.
+ * 손으로 또 적지 않는다. */
+const GEAR_SLOT_LABEL = { head: '머리', eyes: '눈', hand: '손', body: '옷' };
+
+function prizesFor(id) {
+  const out = [];
+  Object.keys(GEAR_LOCKS).forEach((slot) => {
+    Object.keys(GEAR_LOCKS[slot]).forEach((key) => {
+      if (GEAR_LOCKS[slot][key] !== id) return;
+      const row = (GEAR_PRIZES[slot] || []).find(([, k]) => k === key);
+      out.push({
+        label: row ? row[0] : key, key,
+        where: '소품 · ' + (GEAR_SLOT_LABEL[slot] || slot),
+        how: '펫을 오른쪽 클릭 → 소품 → ' + (GEAR_SLOT_LABEL[slot] || slot)
+      });
+    });
+  });
+  ROOM_SLOTS.forEach(([slot, label, items]) => {
+    items.forEach(([lb, key]) => {
+      if (ROOM_LOCKS[key] !== id) return;
+      if (out.some((o) => o.key === key)) return;      // 좌우 공용은 한 번만
+      const side = slot === 'left' || slot === 'right';
+      out.push({
+        label: lb, key,
+        where: '집 꾸미기 · ' + (side ? '좌우 소품' : label),
+        how: '돌보기 창의 「꾸미기」 → ' + (side ? '왼쪽/오른쪽 소품' : label)
+      });
+    });
+  });
+  return out;
+}
+
 function byId(id) { return LIST.find((m) => m.id === id) || null; }
 function title(id) { const m = byId(id); return m ? m.title : ''; }
 
@@ -178,7 +215,7 @@ function pickable(rows, slot, key) {
 }
 
 module.exports = {
-  LIST, byId, title, now, met,
+  LIST, byId, title, now, met, prizesFor,
   gearSlots, roomSlots, pickable,
   GEAR_LOCKS, GEAR_PRIZES, ROOM_LOCKS, ROOM_SLOTS
 };
