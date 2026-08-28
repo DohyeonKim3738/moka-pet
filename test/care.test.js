@@ -976,6 +976,14 @@ console.log('# 왜 지금 못 하는가');
      String((mainSrc.match(/openCare\('prefs'\)/g) || []).length));
   ok('돌보기 창이 설정 값을 싣는다', /Object\.assign\(v, settingsPayload\(\)\)/.test(mainSrc));
   ok('돌보기 창이 탭 이동 신호를 받는다', /api\.onTab/.test(careSrc));
+
+  /* ★탭을 기억하게 두면 메뉴 이름이 거짓말을 한다 — 마지막이 설정이면
+     「돌보기…」를 눌러도 설정이 열려서 두 항목이 구분되지 않는다.
+     여는 쪽이 어디로 갈지 정하고, 창은 기억하지 않는다. */
+  ok('창이 마지막 탭을 기억하지 않는다', !/localStorage/.test(careSrc));
+  ok('탭을 안 넘기면 돌보기로 연다', /const where = tab \|\| 'care';/.test(mainSrc));
+  ok('열 때 언제나 탭을 알려 준다',
+     /careWin\.webContents\.send\('care-tab', where\)/.test(mainSrc));
   ['scale', 'gLogin', 'gSave', 'cEnabled', 'cLead', 'cBrief'].forEach((id) => {
     ok('설정 탭에 ' + id + ' 가 있다', new RegExp('id="' + id + '"').test(careSrc));
   });

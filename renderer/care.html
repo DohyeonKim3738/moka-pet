@@ -426,8 +426,10 @@ button:disabled{pointer-events:none}
    * 무관한 정의까지 함께 날린 적이 있어서(1.24.0), 여기서는 있는 자리에
    * 그대로 두고 '어느 탭 것인지' 이름표만 붙인다. 숨기는 것은 CSS 가 한다.
    *
-   * 고른 탭은 기억한다 — 매번 첫 장으로 돌아가면 이정표를 보러 올 때마다
-   * 세 번을 눌러야 한다. */
+   * ★고른 탭을 기억하게 했다가 뺐다. 마지막이 설정이면 메뉴에서
+   * 「돌보기…」를 눌러도 설정이 열려서, 이름이 가리키는 곳으로 가지 않았다
+   * — 그러면 「돌보기…」와 「설정…」이 구분되지도 않는다. 여는 쪽이
+   * 어디로 갈지 정하고, 이름은 그 자리를 그대로 가리킨다. */
   var TABS = [['care', '돌보기'], ['grow', '성장'], ['family', '가족'],
               ['room', '꾸미기'], ['prefs', '설정']];
 
@@ -444,10 +446,7 @@ button:disabled{pointer-events:none}
     ['#prefsBox', 'prefs']
   ];
 
-  var tabKey = 'moka.care.tab';
   var current = 'care';
-  try { current = localStorage.getItem(tabKey) || 'care'; } catch (e) {}
-  if (!TABS.some(function(t){ return t[0] === current; })) current = 'care';
 
   function tagTabs(){
     WHERE.forEach(function(row){
@@ -461,8 +460,8 @@ button:disabled{pointer-events:none}
   }
 
   function showTab(key, scroll){
+    if (!TABS.some(function(t){ return t[0] === key; })) key = 'care';
     current = key;
-    try { localStorage.setItem(tabKey, key); } catch (e) {}
     Array.prototype.forEach.call(document.querySelectorAll('[data-tabof]'), function(el){
       el.toggleAttribute('data-hide', el.getAttribute('data-tabof') !== key);
     });

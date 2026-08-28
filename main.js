@@ -2456,11 +2456,13 @@ ipcMain.on('care-ready', (e) => {
   if (w && !w.isDestroyed()) w.webContents.send('care-state', carePayload());
 });
 
-/* tab: 'prefs' 처럼 넘기면 그 자리로 연다. 설정 창을 합치면서 ⌘, 가
-   돌보기 창의 설정 탭을 열어야 해서 생겼다. */
+/* 어느 탭으로 열지는 부르는 쪽이 정한다. 창이 마지막 탭을 기억하게 했더니
+   메뉴에서 「돌보기…」를 눌러도 설정이 열렸다 — 이름이 가리키는 곳으로
+   가지 않으면 「돌보기…」와 「설정…」이 구분되지 않는다. */
 function openCare(tab) {
+  const where = tab || 'care';
   const jump = () => {
-    if (tab && careWin && !careWin.isDestroyed()) careWin.webContents.send('care-tab', tab);
+    if (careWin && !careWin.isDestroyed()) careWin.webContents.send('care-tab', where);
   };
   if (careWin && !careWin.isDestroyed()) {
     if (IS_MAC) app.focus({ steal: true });
