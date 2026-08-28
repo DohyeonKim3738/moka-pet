@@ -664,6 +664,11 @@ function actFeed(c, kind) {
   c.sleeping = false;
   addWeight(c, WEIGHT.meal * meal.weight);
   c.meals = (c.meals || 0) + 1;
+  /* 밥도 먹보를 올리되 간식의 3분의 1이다. 밥은 챙겨 줘야 하는 것이고
+     간식은 고르는 것이니, 같은 무게로 치면 성실히 밥만 챙긴 아이가
+     먹보가 되어 버린다. 오래 '밥은 아무 성격도 안 올린다'였던 것을
+     고치는 것이라, 아예 0 으로 두지도 않는다. */
+  bump(c, 'food', 0.3);
   return Object.assign({ ok: true, verb: '밥', food: meal.id, label: meal.label,
                          again: e.again, loved: e.loved },
                        award(c, Math.round(need / 100 * 18) + 4));

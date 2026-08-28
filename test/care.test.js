@@ -283,6 +283,17 @@ console.log('# 성격');
     care.actClean(cleaner);
     ok('치우면 깔끔이 쌓인다', cleaner.traits.tidy > 0);
 
+    /* 밥도 먹보를 올리지만 간식보다 작아야 한다. 같은 무게로 두면 끼니를
+       성실히 챙긴 것만으로 먹보가 되어, 간식으로 키운 아이와 구분이 없어진다.
+       오래 밥이 아무것도 안 올리던 것을 고친 자리라 0 도 아니어야 한다. */
+    const eater = hatched(); eater.age = 5; eater.hunger = 40;
+    care.actFeed(eater);
+    const snacker = hatched(); snacker.age = 5; snacker.hunger = 40;
+    care.actSnack(snacker);
+    ok('밥도 먹보를 올린다', eater.traits.food > 0, String(eater.traits.food));
+    ok('밥은 간식보다 작다', eater.traits.food < snacker.traits.food,
+       eater.traits.food + ' vs ' + snacker.traits.food);
+
     const student = hatched(); student.age = 5;
     student.energy = 90; student.fun = 90;
     care.actTrain(student);
