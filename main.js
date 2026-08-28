@@ -118,6 +118,14 @@ function defaults() {
     night: { enabled: true, from: 23, to: 7 },
     away: { enabled: true, minutes: 20 },
     stretch: Object.assign({}, STRETCH_DEFAULT),
+    /* 곁에 세워 둘 아이들. [{ key, x, y }] 이고 최대 셋이다.
+       돌보는 아이는 하나뿐이라는 규칙은 그대로다 — 곁의 아이들은 함께
+       있을 뿐, 배고파지지도 나이 먹지도 않는다(안 보이는 아이가 멈춰
+       있는 지금 규칙과 같다). 두 마리를 다 돌봐야 하면 그건 일이 된다.
+
+       셋으로 막은 것은 창 하나가 렌더러 프로세스 하나라서다 — 재 보니
+       한 마리에 140MB 쯤 는다. 아홉을 다 세우면 1GB 를 넘긴다. */
+    buddies: [],
     taught: {},
     zoom: { enabled: true },
     update: { enabled: true, repo: 'DohyeonKim3738/moka-pet', skip: '' },
@@ -274,6 +282,16 @@ function loadConfig() {
   if (raw.away && typeof raw.away === 'object') Object.assign(cfg.away, raw.away);
   // ★새 저장본 키를 복원부에 넣는 걸 빠뜨리면 켤 때마다 초기화된다
   if (raw.stretch && typeof raw.stretch === 'object') Object.assign(cfg.stretch, raw.stretch);
+  // 1.31 까지는 곁의 아이가 하나(buddy)였다 — 목록으로 옮겨 준다
+  if (raw.buddy && raw.buddy.key) {
+    cfg.buddies = [{ key: raw.buddy.key, x: raw.buddy.x, y: raw.buddy.y }];
+  }
+  if (Array.isArray(raw.buddies)) {
+    cfg.buddies = raw.buddies
+      .filter((b) => b && typeof b.key === 'string')
+      .slice(0, BUDDY_MAX)
+      .map((b) => ({ key: b.key, x: b.x, y: b.y }));
+  }
   if (raw.taught && typeof raw.taught === 'object') cfg.taught = Object.assign({}, raw.taught);
   if (raw.zoom && typeof raw.zoom === 'object') Object.assign(cfg.zoom, raw.zoom);
   if (raw.home && typeof raw.home === 'object') Object.assign(cfg.home, raw.home);
@@ -513,6 +531,15 @@ function keepOnScreen() {
   placeRing();
   // 인자 없이 부르면 높이가 120 으로 줄어든다 — 지금 높이를 그대로 넘긴다
   if (agendaWin && !agendaWin.isDestroyed()) placeAgenda(agendaWin.getBounds().height);
+  // 곁의 아이들도 같은 화면 밖에 있었을 수 있다
+  buddies.forEach((v, key) => {
+    if (!v.win || v.win.isDestroyed()) return;
+    const q = v.win.getBounds();
+    const d = clampToDisplays(q.x, q.y, q.width, q.height);
+    if (d.x === q.x && d.y === q.y) return;
+    v.win.setBounds({ x: d.x, y: d.y, width: q.width, height: q.height });
+    rememberBuddyAt(key, d.x, d.y);
+  });
 }
 
 // keep the pet from being stranded off-screen when monitors change
@@ -529,6 +556,11 @@ function clampToDisplays(x, y, w, h) {
 }
 
 function applyAlwaysOnTop() {
+  buddies.forEach((v) => {
+    if (!v.win || v.win.isDestroyed()) return;
+    if (cfg.alwaysOnTop) v.win.setAlwaysOnTop(true, 'screen-saver');
+    else v.win.setAlwaysOnTop(false);
+  });
   if (!win) return;
   if (cfg.alwaysOnTop) win.setAlwaysOnTop(true, 'screen-saver');
   else win.setAlwaysOnTop(false);
@@ -546,6 +578,7 @@ function moveTo(x, y) {
 }
 
 function applySize() {
+  if (buddies.size) openBuddies();   // 곁의 아이들도 같은 크기 규칙
   if (!win || win.isDestroyed()) return;
   const { width, height } = sizeFor(cfg.pct, curStage());
   const b = win.getBounds();
@@ -784,6 +817,84 @@ ipcMain.on('hit', (_e, over) => {
 
 ipcMain.on('menu', () => showContextMenu());
 
+/* ---- 곁에 선 아이의 손길 ----
+   채널을 따로 둔 이유: 펫 창의 핸들러들은 보낸 창을 구분하지 않아서, 같은
+   채널을 쓰면 곁의 아이를 쓰다듬어도 돌보는 아이가 쓰다듬어진다.
+   그리고 곁의 아이가 여럿이므로 채널만으로는 부족하다 — 보낸 창으로
+   누구인지까지 되짚는다. */
+ipcMain.on('buddy-hit', (e, over) => {
+  const key = buddyOf(e.sender);
+  const b = key && buddies.get(key);
+  if (!b) return;
+  b.over = !!over;
+  if (b.win && !b.win.isDestroyed()) b.win.setIgnoreMouseEvents(!over, { forward: true });
+});
+
+ipcMain.on('buddy-patted', (e) => {
+  const key = buddyOf(e.sender);
+  const b = key && buddies.get(key);
+  const p = key && cfg.pets[key];
+  if (!b || !p || !b.win || b.win.isDestroyed()) return;
+  // 곁의 아이는 돌보는 중이 아니라 경험치는 없다. 좋아하기는 한다.
+  b.win.webContents.send('state', 'waving', null);
+  setTimeout(() => {
+    if (b.win && !b.win.isDestroyed()) {
+      b.win.webContents.send('state', p.care.sleeping ? 'sleeping' : 'idle', null);
+    }
+  }, 1800);
+});
+
+ipcMain.on('buddy-drag-start', (e) => {
+  const key = buddyOf(e.sender);
+  const b = key && buddies.get(key);
+  if (!b || !b.win || b.win.isDestroyed()) return;
+  const box = b.win.getBounds();
+  const p = screen.getCursorScreenPoint();
+  b.dragOrigin = { dx: p.x - box.x, dy: p.y - box.y };
+  if (b.dragTimer) clearInterval(b.dragTimer);
+  b.dragTimer = setInterval(() => {
+    if (!b.dragOrigin || !b.win || b.win.isDestroyed()) return;
+    const q = screen.getCursorScreenPoint();
+    const s2 = b.win.getBounds();
+    b.win.setBounds({ x: q.x - b.dragOrigin.dx, y: q.y - b.dragOrigin.dy,
+                      width: s2.width, height: s2.height });
+  }, 16);
+});
+
+ipcMain.on('buddy-drag-end', (e) => {
+  const key = buddyOf(e.sender);
+  const b = key && buddies.get(key);
+  if (!b) return;
+  if (b.dragTimer) { clearInterval(b.dragTimer); b.dragTimer = null; }
+  b.dragOrigin = null;
+  if (!b.win || b.win.isDestroyed()) return;
+  const box = b.win.getBounds();
+  rememberBuddyAt(key, box.x, box.y);
+});
+
+ipcMain.on('buddy-menu', (e) => {
+  const key = buddyOf(e.sender);
+  const p = key && cfg.pets[key];
+  if (!p) return;
+  Menu.buildFromTemplate([
+    { label: p.name + ' · 곁에 있는 아이', enabled: false },
+    { type: 'separator' },
+    { label: '이 아이를 돌보기', click: () => swapWithBuddy(key) },
+    { label: '곁에 두지 않기', click: () => setBuddyAt(key, false) }
+  ]).popup({ window: buddies.get(key).win });
+});
+
+/* 자리를 바꾼다. 돌보던 아이가 그 자리로 가고, 곁에 있던 아이를 돌본다 —
+   "이 아이를 돌보려면 저 아이를 치워야 한다"가 되지 않도록. */
+function swapWithBuddy(key) {
+  if (!key || !cfg.pets[key] || cfg.pets[key].care.egg) return;
+  const was = cfg.species;
+  cfg.buddies = (cfg.buddies || []).map((b) => (b.key === key ? { key: was, x: b.x, y: b.y } : b));
+  showPet(key);                     // saveConfig · pushConfig · pushCare 를 다 한다
+  openBuddies();
+}
+
+
 /* ------------------------------------------------------------------ *
  * menus
  * ------------------------------------------------------------------ */
@@ -894,12 +1005,258 @@ function tailMenu(name) {
 
 /* Switching between pets you have actually met. An egg is not on this
    list — you cannot pick who is inside it. */
+/* ------------------------------------------------------------------ *
+ * 곁에 선 아이들
+ *
+ * 돌보는 아이는 여전히 하나다. 창·막대·돌보기·말풍선이 전부 '지금 보는
+ * 아이' 하나를 가리키도록 짜여 있어서(win 만 예순 곳이 넘게 쓰인다),
+ * 그걸 여러 마리로 고치는 것은 1.24.0 때처럼 구간을 잘라 옮기는 일이 된다.
+ *
+ * 그래서 고치지 않고 '덧붙인다'. 곁의 아이는 자기 창 하나를 갖고 그 안에서
+ * 서성이다 밤이면 잔다. 배고파지지도 나이 먹지도 않는다 — 안 보이는 아이가
+ * 멈춰 있는 지금 규칙 그대로다. 쓰다듬으면 좋아하고, 누르면 자리를 바꿔
+ * 그 아이를 돌보게 된다.
+ *
+ * 셋까지만 세울 수 있다. 창 하나가 렌더러 프로세스 하나이고, 재 보니
+ * 한 마리에 140MB 쯤 는다.
+ * ------------------------------------------------------------------ */
+
+const BUDDY_MAX = 3;
+
+/* 곁의 아이는 돌보는 아이보다 작게 그린다. 곁의 아이는 밥도 재주도 없는
+   '함께 있는 아이'라, 같은 크기로 세워 두면 어느 쪽이 지금 돌보는 아이인지
+   알 수 없다. 크기가 그걸 말해 준다 — 글로 설명할 필요가 없다.
+   책상도 덜 차지한다. */
+const BUDDY_SCALE = 0.6;
+
+/* key -> { win, over, dragOrigin, dragTimer } */
+const buddies = new Map();
+let buddyTimer = null;
+
+function buddyKeys() {
+  return (cfg.buddies || [])
+    .map((b) => b.key)
+    .filter((k) => k && k !== cfg.species &&
+                   cfg.pets[k] && cfg.pets[k].care && !cfg.pets[k].care.egg);
+}
+
+function buddySlot(key) {
+  return (cfg.buddies || []).find((b) => b.key === key) || null;
+}
+
+function buddyPayloadFor(key) {
+  const p = cfg.pets[key];
+  if (!p) return null;
+  return {
+    species: p.species || key,
+    pet: p,
+    label: (SP[p.species || key] || {}).label || '',
+    home: false                       // 곁의 아이는 집을 두지 않는다
+  };
+}
+
+function buddySizeFor(key) {
+  const p = cfg.pets[key];
+  return sizeFor(cfg.pct * BUDDY_SCALE, p ? care.stageFor(p.care) : 'adult');
+}
+
+/* 이미 나와 있는 아이들과 주인을 피해 빈 자리를 고른다 — 겹쳐 세우면
+   두 마리가 한 마리로 보인다. */
+/* 지금 책상에 나와 있는 다른 아이들의 자리. 서성이다 서로 겹치면 두
+   마리가 한 마리로 뭉쳐 보인다 — 처음 세울 때만 피하고 그 뒤로는 안 피했더니
+   실제로 모서리가 겹쳤다. */
+function petRects(exceptKey) {
+  const out = [];
+  if (win && !win.isDestroyed()) out.push(win.getBounds());
+  buddies.forEach((v, k) => {
+    if (k === exceptKey || !v.win || v.win.isDestroyed()) return;
+    out.push(v.win.getBounds());
+  });
+  return out;
+}
+
+function hitsAny(box, rects, gap) {
+  const g = gap || 8;
+  return rects.some((r) =>
+    box.x < r.x + r.width + g && r.x < box.x + box.width + g &&
+    box.y < r.y + r.height + g && r.y < box.y + box.height + g);
+}
+
+function placeBuddyDefault(w, h, taken) {
+  const b = win && !win.isDestroyed() ? win.getBounds() : null;
+  const area = b ? screen.getDisplayMatching(b).workArea : screen.getPrimaryDisplay().workArea;
+  const baseY = b ? b.y + b.height - h : area.y + area.height - h - 48;
+  const start = b ? b.x : area.x + area.width - w - 48;
+  const overlaps = (x) => taken.some((t) => x < t.x + t.w + 8 && x + w + 8 > t.x);
+  for (let step = 1; step <= 12; step++) {
+    for (const dir of [-1, 1]) {
+      const x = start + dir * step * (w + 14);
+      if (x < area.x + 4 || x + w > area.x + area.width - 4) continue;
+      if (!overlaps(x)) return clampToDisplays(x, baseY, w, h);
+    }
+  }
+  return clampToDisplays(start, baseY, w, h);
+}
+
+function openBuddies() {
+  const want = buddyKeys();
+  // 목록에서 빠진 아이는 창을 닫는다
+  Array.from(buddies.keys()).forEach((k) => { if (want.indexOf(k) < 0) closeBuddy(k); });
+
+  const taken = [];
+  if (win && !win.isDestroyed()) {
+    const b = win.getBounds();
+    taken.push({ x: b.x, w: b.width });
+  }
+  buddies.forEach((v) => {
+    if (v.win && !v.win.isDestroyed()) {
+      const b = v.win.getBounds();
+      taken.push({ x: b.x, w: b.width });
+    }
+  });
+
+  want.forEach((key) => {
+    const { width, height } = buddySizeFor(key);
+    const slot = buddySlot(key) || {};
+    const held = buddies.get(key);
+    if (held && held.win && !held.win.isDestroyed()) {
+      const b = held.win.getBounds();
+      held.win.setBounds({ x: b.x, y: b.y + b.height - height, width, height });
+      held.win.webContents.send('config', buddyPayloadFor(key));
+      pushBuddy(key);
+      return;
+    }
+
+    let x = Number.isFinite(slot.x) ? slot.x : null;
+    let y = Number.isFinite(slot.y) ? slot.y : null;
+    if (x === null || y === null) ({ x, y } = placeBuddyDefault(width, height, taken));
+    else ({ x, y } = clampToDisplays(x, y, width, height));
+    taken.push({ x, w: width });
+
+    const w2 = new BrowserWindow({
+      width, height, x, y,
+      frame: false, transparent: true, backgroundColor: '#00000000',
+      hasShadow: false, resizable: false, movable: true,
+      minimizable: false, maximizable: false, fullscreenable: false,
+      skipTaskbar: true, show: false, acceptFirstMouse: true, thickFrame: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'buddy-preload.js'),
+        contextIsolation: true, nodeIntegration: false, backgroundThrottling: false
+      }
+    });
+    buddies.set(key, { win: w2, over: false, dragOrigin: null, dragTimer: null });
+    w2.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+    w2.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    if (cfg.alwaysOnTop) w2.setAlwaysOnTop(true, 'screen-saver');
+    w2.setIgnoreMouseEvents(true, { forward: true });
+    w2.once('ready-to-show', () => {
+      if (w2.isDestroyed()) return;
+      w2.showInactive();
+      w2.webContents.send('config', buddyPayloadFor(key));
+      pushBuddy(key);
+    });
+    w2.on('closed', () => { buddies.delete(key); });
+  });
+
+  if (buddies.size) startBuddyWander(); else stopBuddyWander();
+}
+
+function closeBuddy(key) {
+  const b = buddies.get(key);
+  if (!b) return;
+  if (b.dragTimer) clearInterval(b.dragTimer);
+  if (b.win && !b.win.isDestroyed()) b.win.destroy();
+  buddies.delete(key);
+}
+
+function closeAllBuddies() {
+  Array.from(buddies.keys()).forEach(closeBuddy);
+  stopBuddyWander();
+}
+
+function stopBuddyWander() {
+  if (buddyTimer) { clearInterval(buddyTimer); buddyTimer = null; }
+}
+
+function pushBuddy(key) {
+  const b = buddies.get(key);
+  const p = cfg.pets[key];
+  if (!b || !b.win || b.win.isDestroyed() || !p) return;
+  b.win.webContents.send('care', care.view(p.care));
+  b.win.webContents.send('state', p.care.sleeping ? 'sleeping' : 'idle', null);
+}
+
+function pushBuddies() { buddies.forEach((_v, k) => pushBuddy(k)); }
+
+/* 어느 창이 어느 아이인지. 채널만 나누면 여러 마리일 때 누가 보낸 건지
+   알 수 없으므로, 보낸 창으로 되짚는다. */
+function buddyOf(sender) {
+  const w2 = BrowserWindow.fromWebContents(sender);
+  if (!w2) return null;
+  for (const [key, v] of buddies) if (v.win === w2) return key;
+  return null;
+}
+
+function setBuddyAt(key, on) {
+  const list = (cfg.buddies || []).filter((b) => b.key !== key);
+  if (on) {
+    if (list.length >= BUDDY_MAX) return false;      // 셋을 넘기지 않는다
+    list.push({ key, x: null, y: null });
+  }
+  cfg.buddies = list;
+  saveConfig();
+  openBuddies();
+  return true;
+}
+
+function rememberBuddyAt(key, x, y) {
+  const slot = buddySlot(key);
+  if (!slot) return;
+  slot.x = x; slot.y = y;
+  saveConfig();
+}
+
+/* 서성임. 주인의 wander 와 같은 결이되 훨씬 단순하다 — 곁의 아이는
+   집도 없고 재주도 없으니 자리만 조금씩 옮긴다. */
+function startBuddyWander() {
+  if (buddyTimer) return;
+  buddyTimer = setInterval(() => {
+    buddies.forEach((v, key) => {
+      if (!v.win || v.win.isDestroyed()) return;
+      const p = cfg.pets[key];
+      if (!p) return;
+      if (p.care.sleeping || v.over || v.dragOrigin) return;
+      if (Math.random() > 0.35) return;
+      const b = v.win.getBounds();
+      const area = screen.getDisplayMatching(b).workArea;
+      const step = Math.round((Math.random() * 2 - 1) * 46);
+      const nx = Math.max(area.x + 4, Math.min(area.x + area.width - b.width - 4, b.x + step));
+      if (nx === b.x) return;
+      // 남의 자리로는 걸어 들어가지 않는다
+      if (hitsAny({ x: nx, y: b.y, width: b.width, height: b.height }, petRects(key))) return;
+      v.win.webContents.send('state', nx > b.x ? 'running-right' : 'running-left', null);
+      v.win.setBounds({ x: nx, y: b.y, width: b.width, height: b.height });
+      rememberBuddyAt(key, nx, b.y);
+      setTimeout(() => {
+        if (v.win && !v.win.isDestroyed()) {
+          v.win.webContents.send('state', p.care.sleeping ? 'sleeping' : 'idle', null);
+        }
+      }, 900);
+    });
+  }, 6000);
+}
+
 function showPet(key) {
   if (!cfg.pets[key] || key === cfg.species || cfg.pets[key].care.egg) return;
   cfg.species = key;
   cfg.pets[key].care = care.normalize(cfg.pets[key].care);
   cfg.pets[key].care.lastTick = Date.now();   // it was not on duty until now
   saveConfig();
+  // 곁에 세운 아이를 돌보게 되면 그 자리는 빈다
+  const had = (cfg.buddies || []).length;
+  cfg.buddies = (cfg.buddies || []).filter((b) => b.key !== key);
+  if (cfg.buddies.length !== had) saveConfig();
+  openBuddies();
   pushConfig();
   pushCare();
   if (win && !win.isDestroyed()) {
@@ -971,6 +1328,36 @@ function buildMenu() {
           : [{ label: '아직 배운 재주가 없어요', enabled: false }]
       };
     })(),
+    /* 곁에 세울 아이들. 알은 뺀다 — 알은 아직 누구인지가 비밀이라
+       책상에 세워 두면 그 비밀이 새어 나간다.
+       라디오가 아니라 체크다: 셋까지 함께 세울 수 있다. */
+    {
+      label: '곁에 둘 아이' +
+        (cfg.buddies && cfg.buddies.length
+          ? '  (' + buddyKeys().length + ' / ' + BUDDY_MAX + ')' : ''),
+      submenu: (() => {
+        const others = hatchedKeys().filter((k) => k !== cfg.species);
+        if (!others.length) {
+          return [{ label: '아직 곁에 둘 아이가 없어요', enabled: false }];
+        }
+        const on = buddyKeys();
+        const full = on.length >= BUDDY_MAX;
+        return others.map((k) => {
+          const here = on.indexOf(k) >= 0;
+          return {
+            label: cfg.pets[k].name + (!here && full ? '  — 셋까지만' : ''),
+            type: 'checkbox',
+            checked: here,
+            // 꽉 찼으면 새로 켜는 것만 막는다. 끄는 것은 언제나 된다.
+            enabled: here || !full,
+            click: () => setBuddyAt(k, !here)
+          };
+        }).concat(on.length ? [
+          { type: 'separator' },
+          { label: '모두 곁에서 빼기', click: () => { cfg.buddies = []; saveConfig(); openBuddies(); } }
+        ] : []);
+      })()
+    },
     { type: 'separator' },
     /* 털 색 · 눈 · 소품 · 집 · 대표 칭호는 돌보기 창의 「꾸미기」 탭으로
        옮겼다. 같은 것을 두 군데서 고르게 두면 한쪽만 고쳐 놓고 지나가게
@@ -1652,6 +2039,9 @@ function careTick(push) {
   if (wasEgg && !c.egg) { cfg.eggKey = null; announceHatch(); }
   eggTick();
   checkMissions();
+  // 곁의 아이도 한 번씩 다시 그린다 — 열 때 한 번만 보내면, 자리를 바꾸거나
+  // 그 아이가 잠든 뒤에 화면이 옛 모습으로 남는다
+  pushBuddies();
   if (push !== false) pushCare();
   if (c.poops.length !== before || (wasEgg && !c.egg)) saveConfig();
 }
@@ -2565,6 +2955,7 @@ if (!app.requestSingleInstanceLock()) {
     startCalendar();
     startCare();
     startUpdates();
+    openBuddies();        // 저장본에 곁의 아이가 있으면 같이 나온다
     if (startupNotice) {
       // after the windows exist, or there is nowhere to say it
       setTimeout(() => { showBubble(startupNotice); startupNotice = null; }, 2500);
@@ -2592,6 +2983,15 @@ if (!app.requestSingleInstanceLock()) {
 function smokeCheck() {
   const checks = [
     ['펫 우클릭 메뉴', () => buildMenu()],
+    /* 곁의 아이 쪽도 메뉴와 payload 를 만들어 본다. 1.24.0 때 우클릭
+       메뉴가 터진 채로 나간 적이 있어서 이 검사가 생겼다. */
+    ['곁의 아이 payload', () => buddyKeys().map((k) => buddyPayloadFor(k))],
+    ['곁의 아이 메뉴', () => buddyKeys().map((k) => Menu.buildFromTemplate([
+      { label: cfg.pets[k].name + ' · 곁에 있는 아이', enabled: false },
+      { type: 'separator' },
+      { label: '이 아이를 돌보기', click: () => {} },
+      { label: '곁에 두지 않기', click: () => {} }
+    ]))],
     ['펫 창 payload', () => payload()],
     ['돌보기 payload', () => carePayload()],
     ['설정 payload', () => settingsPayload()],
@@ -2647,6 +3047,7 @@ function smokeCheck() {
       cfg.pets[keys[1]].mate = keys[0];
       cfg.eggKey = null;
       cfg.species = keys[0];
+      cfg.buddies = [{ key: keys[1], x: null, y: null }];   // 곁에 한 마리 세운 채로
       cfg.missions.done = MISSIONS.map((m) => m.id);   // every prize unlocked
     }]
   ];

@@ -1019,6 +1019,44 @@ console.log('# 왜 지금 못 하는가');
   /* 알일 때 「꾸미기」 탭은 고를 것이 하나도 없어 통째로 빈 화면이었다.
      탭을 눌렀는데 아무것도 없으면 고장으로 읽힌다 — 다섯 탭 모두 무언가는
      말해야 한다. */
+  /* 곁에 선 아이.
+     ★채널을 나누지 않으면 곁의 아이를 쓰다듬어도 돌보는 아이가 쓰다듬어진다 —
+     펫 창의 핸들러들은 보낸 창을 구분하지 않기 때문이다. */
+  const buddyPre = fs3.readFileSync(path3.join(__dirname, '..', 'buddy-preload.js'), 'utf8');
+  ['buddy-hit', 'buddy-menu', 'buddy-patted', 'buddy-drag-start', 'buddy-drag-end']
+    .forEach((ch) => {
+      ok('곁의 아이가 ' + ch + ' 로 보낸다', buddyPre.includes("'" + ch + "'"), ch);
+      ok('main 이 ' + ch + ' 를 받는다', mainSrc.includes("ipcMain.on('" + ch + "'"), ch);
+    });
+  ok('곁의 아이는 돌보는 아이의 채널을 쓰지 않는다',
+     !/ipcRenderer\.send\('(hit|menu|patted|drag-start|drag-end)'/.test(buddyPre));
+  ok('곁의 아이도 빌드에 들어간다',
+     /buddy-preload\.js/.test(fs3.readFileSync(path3.join(__dirname, '..', 'package.json'), 'utf8')));
+  // 알은 곁에 세우지 않는다 — 알은 누구인지가 비밀이다
+  // 알은 누가 나올지가 전부다 — 책상에 세워 두면 그 비밀이 새어 나간다
+  ok('곁의 아이 목록이 알을 거른다',
+     /!cfg\.pets\[k\]\.care\.egg/.test(mainSrc));
+  ok('곁에 둘 후보도 부화한 아이뿐', /hatchedKeys\(\)\.filter\(\(k\) => k !== cfg\.species\)/.test(mainSrc));
+  ok('돌보는 아이는 곁에 서지 않는다', /k !== cfg\.species &&/.test(mainSrc));
+  ok('곁의 아이들도 한 번씩 다시 그린다', /pushBuddies\(\);\n  if \(push !== false\)/.test(mainSrc));
+  // 셋까지. 창 하나가 렌더러 하나라 한 마리에 140MB 쯤 는다
+  ok('곁의 아이는 셋까지', /const BUDDY_MAX = 3;/.test(mainSrc));
+  // 크기가 '어느 쪽이 지금 돌보는 아이인가'를 말해 준다
+  ok('곁의 아이는 작게 그린다', /const BUDDY_SCALE = 0\.6;/.test(mainSrc));
+  ok('곁의 아이 크기에 그 값을 쓴다', /sizeFor\(cfg\.pct \* BUDDY_SCALE,/.test(mainSrc));
+  ok('꽉 차면 새로 켜는 것만 막는다', /enabled: here \|\| !full/.test(mainSrc));
+  // 여럿이면 채널만으로는 누가 보냈는지 모른다 — 창으로 되짚어야 한다
+  ok('보낸 창으로 누구인지 되짚는다', /function buddyOf\(sender\)/.test(mainSrc));
+  // 서성이다 겹치면 두 마리가 한 마리로 뭉쳐 보인다
+  ok('서성일 때 남의 자리를 피한다', /hitsAny\(\{ x: nx/.test(mainSrc));
+  ['buddy-hit', 'buddy-patted', 'buddy-drag-start', 'buddy-drag-end', 'buddy-menu']
+    .forEach((ch) => {
+      const re = new RegExp("ipcMain\\.on\\('" + ch + "', \\(e[,)]");
+      ok(ch + ' 이 보낸 창을 받는다', re.test(mainSrc), ch);
+    });
+  // 1.31 저장본(곁의 아이 하나)에서 올라와도 이어져야 한다
+  ok('옛 저장본의 buddy 를 목록으로 옮긴다', /raw\.buddy && raw\.buddy\.key/.test(mainSrc));
+
   ok('알일 때도 꾸미기 탭이 비지 않는다',
      /if \(c\.egg\) \{[\s\S]{0,200}알에서 깨어나면 털 색과 소품/.test(careSrc));
 
