@@ -126,6 +126,13 @@ const TRAIT_SOLO = 1.4;
 const TRAIT_LEAD = 1.25;   // 앞선 둘이 3등을 이만큼 앞서야 짝이 된다
 const TRAIT_MIN = 8;       // 그 아래면 아직 판단할 게 없다 — 평범
 
+/* 재주 성공률. 화면이 이 식을 다시 적으면 두 벌이 되므로 여기서만 센다. */
+const TRICK_BASE = 0.35, TRICK_BOND = 0.012, TRICK_MIN = 0.15, TRICK_MAX = 0.92;
+function trickChance(bond, mod) {
+  return Math.min(TRICK_MAX, Math.max(TRICK_MIN,
+                  TRICK_BASE + (bond || 0) * TRICK_BOND + (mod || 0)));
+}
+
 /* ---------- 성격 ----------
    여섯 갈래로 쌓이고, 이름은 그 중 앞선 것에서 나온다. 한 갈래만 뚜렷하면
    그 갈래의 이름을, 두 갈래가 나란히 앞서면 **둘을 합친 이름**을 준다.
@@ -807,7 +814,7 @@ function actTrain(c) {
   if (c.fun < 30) return { ok: false, reason: '지금은 시큰둥해요' };
 
   const bond = ((c.traits && c.traits.love) || 0) + ((c.traits && c.traits.play) || 0);
-  const chance = Math.min(0.92, Math.max(0.15, 0.35 + bond * 0.012 + mods(c).trick));
+  const chance = trickChance(bond, mods(c).trick);
   c.energy = clamp(c.energy - 12);
   c.fun = clamp(c.fun + 6);
   c.sleeping = false;
@@ -1085,6 +1092,137 @@ function natureNote(c) {
   return bits.join(' · ') || null;
 }
 
+/* ---------- 알아두기 ----------
+   성격이 어떻게 정해지고 무엇을 바꾸는지는 여태 코드 안에만 있었다. 화면에
+   숫자를 옮겨 적으면 그 순간 두 벌이 되고, 이 저장소는 그걸로 이미 여러 번
+   당했다(missions 의 안 쓰이는 안내문, 낡은 README, 막대와 어긋난 잠금).
+
+   그래서 표를 적지 않는다. **복사본에 실제 동작을 태워 보고**, 실제 보정
+   계산을 그대로 불러서 뽑는다 — `blocked()` 가 쓰는 방법과 같다. 규칙을
+   고치면 안내가 저절로 따라온다. */
+
+/* 무엇이든 할 수 있는 상태의 다섯 살배기. 어느 하나라도 막히면 그 행동은
+   아무것도 안 올린 것처럼 보이므로, 문턱을 전부 넘겨 둔다. */
+function guidePet() {
+  const c = blank();
+  c.egg = false;
+  c.hatch = 100;
+  c.age = 5;
+  c.hunger = 40;
+  c.fun = 60;
+  c.energy = 90;
+  c.weight = baseWeight(5);
+  c.tricks = ['앉아'];
+  c.poops = [{ id: 'guide', x: 2 }];
+  c.sleeping = false;
+  return c;
+}
+
+/* 훈련은 성공 여부가 운이라 한 번 태워서는 폭을 알 수 없다. 주사위를 양쪽
+   끝으로 고정해 두 번 태우고 최소~최대로 적는다. */
+function withDice(v, fn) {
+  const real = Math.random;
+  Math.random = function () { return v; };
+  try { return fn(); } finally { Math.random = real; }
+}
+
+const GUIDE_ACTS = [
+  ['밥 주기',       (c) => actFeed(c)],
+  ['간식 주기',     (c) => actSnack(c)],
+  ['놀아주기',      (c) => actPlay(c)],
+  ['산책',          (c) => actWalk(c)],
+  ['게임',          (c) => actGame(c, true)],
+  ['재주 가르치기', (c) => actTrain(c)],
+  ['재주 시키기',   (c) => actPerform(c, '앉아')],
+  ['쓰다듬기',      (c) => actPat(c)],
+  ['재우기',        (c) => actSleep(c)],
+  ['치우기',        (c) => actClean(c)]
+];
+
+/* 어떤 행동이 어떤 갈래를 얼마나 올리는가 — 적어 두지 않고 태워 본다 */
+function traitSources() {
+  return GUIDE_ACTS.map(([label, run]) => {
+    const runs = [0, 0.999].map((dice) => {
+      const c = JSON.parse(JSON.stringify(guidePet()));
+      let ok = false;
+      try { ok = !!(withDice(dice, () => run(c)) || {}).ok; } catch (e) { ok = false; }
+      return { ok, traits: c.traits };
+    });
+    const base = guidePet().traits;
+    const gains = TRAIT_KEYS.map((k) => {
+      const vs = runs.map((r) => Math.round(((r.traits[k] || 0) - (base[k] || 0)) * 100) / 100);
+      return { key: k, name: PERSONALITY[k], min: Math.min.apply(null, vs), max: Math.max.apply(null, vs) };
+    }).filter((g) => g.max > 0);
+    return { act: label, reached: runs.some((r) => r.ok), gains };
+  });
+}
+
+/* 성격 하나가 실제로 바꾸는 값. mods() 를 그대로 불러 쓰므로 보정을 고치면
+   안내도 같이 바뀐다. 시간은 '0 에서 100 까지 차는 데 걸리는 시간'이다. */
+function effectsOf(c) {
+  const m = mods(c);
+  const r1 = (n) => Math.round(n * 10) / 10;
+  return {
+    hungerH: r1(DRAIN.hunger / 60 / m.hunger),
+    funH:    r1(DRAIN.fun / 60 / m.fun),
+    energyH: r1(DRAIN.energy / 60 / m.energy),
+    trick:   Math.round(trickChance(0, m.trick) * 100),
+    poopH:   r1(POOP_EVERY_MIN / 60 / m.poop),
+    wander:  Math.round(m.wander * 100) / 100,
+    patFun:  m.patFun,
+    snackFun: m.snackFun,
+    gain:    Math.round(m.gain * 100) / 100,
+    playCost: Math.round(m.playCost * 100) / 100,
+    walkBurn: Math.round(m.walkBurn * 100) / 100
+  };
+}
+
+function natureTable() {
+  const rows = [{ name: '평범', keys: [] }];
+  TRAIT_KEYS.forEach((k) => rows.push({ name: PERSONALITY[k], keys: [k] }));
+  Object.keys(PERSONALITY_PAIR).forEach((pk) =>
+    rows.push({ name: PERSONALITY_PAIR[pk], keys: pk.split('+') }));
+
+  return rows.map((r) => {
+    const c = guidePet();
+    r.keys.forEach((k, i) => { c.traits[k] = i === 0 ? 20 : 18; });
+    if (r.keys.length === 1) c.traits[r.keys[0]] = 30;
+    return {
+      name: r.name,
+      parts: r.keys.map((k) => PERSONALITY[k]),
+      // 표에 적은 이름과 실제 판정이 어긋나면 그건 안내가 아니라 거짓말이다
+      reads: personality(c),
+      effects: effectsOf(c)
+    };
+  });
+}
+
+function buildTable() {
+  return ['slim', 'normal', 'plump', 'heavy'].map((band) => {
+    const c = guidePet();
+    // 그 체형으로 읽히는 무게를 찾는다 — 경계값을 옮겨 적지 않기 위해
+    const base = baseWeight(c.age);
+    let w = base * 0.5;
+    while (w < base * 2.5) {
+      c.weight = w;
+      if (weightBand(c) === band) break;
+      w += base * 0.01;
+    }
+    return { key: band, name: WEIGHT_LABEL[band], reads: weightBand(c), effects: effectsOf(c) };
+  });
+}
+
+function guide() {
+  return {
+    rules: { solo: TRAIT_SOLO, lead: TRAIT_LEAD, min: TRAIT_MIN,
+             decay: Math.round((1 - TRAIT_DECAY) * 100), fromAge: 3 },
+    traits: TRAIT_KEYS.map((k) => ({ key: k, name: PERSONALITY[k], note: NATURE_NOTE[k] })),
+    sources: traitSources(),
+    natures: natureTable(),
+    builds: buildTable()
+  };
+}
+
 /* ---------- tricks ---------- */
 
 /* ---------- family ---------- */
@@ -1250,7 +1388,7 @@ module.exports = {
   blank, normalize, advance, view, wants, mood, titleFor, needFor, ga, ro, eul, neun,
   actFeed, actSnack, actPlay, actWalk, actSleep, actClean, actTrain, actPat, actGame,
   actPerform, showValue, MEALS, SNACKS, PLAYS, favourite, learned, canCook,
-  weightBand, baseWeight, personality, personalityNames, natureKey, natureKeys,
+  weightBand, baseWeight, personality, personalityNames, natureKey, natureKeys, guide,
   natureNote, mods, nextTrick, TRICKS,
   hatchProgress, hatch, warmEgg, canWarm, reset, stageFor, stageScale, isNight,
   canMate, whyNotMate, inherit, inheritTricks, markMated, MATE_AGE, note,

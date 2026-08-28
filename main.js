@@ -1964,6 +1964,11 @@ function startCalendar() {
    이름은 그대로 두고 속만 바꾼다. */
 function pushSettings() { pushCare(); }
 
+/* 알아두기 탭. care.js 의 규칙에서 뽑아낸 표라 상태와 무관하고 안 바뀌므로
+   한 번 만들어 두고 돌려준다 — 매번 스물두 성격을 다시 계산할 이유가 없다. */
+let guideCache = null;
+ipcMain.handle('care:guide', () => (guideCache || (guideCache = care.guide())));
+
 ipcMain.handle('google:status', () => settingsPayload());
 
 ipcMain.handle('google:set-client', (_e, id, secret) => {

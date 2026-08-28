@@ -1076,6 +1076,63 @@ console.log('# 왜 지금 못 하는가');
   ok('트레이 메뉴의 재주가 판정을 쓴다',
      /care\.blocked\(c\)\.show/.test(mainSrc));
 
+  /* ★탭에 이름표를 안 달면 그 조각은 **모든 탭에 남는다**. 알아두기 탭에
+     「치우기 — 치울 게 없어요」가 따라 나왔고, 예전에는 성장 카드와 게임
+     카드가 그랬다. 눈으로 보기 전에는 안 걸리는 종류라 못 박는다.
+
+     ★허용 목록으로 막지 않는다 — 빠뜨린 것을 하나씩 목록에 넣다 보면
+     검사가 "내가 아는 것만 본다"가 되어 무뎌진다. 대신 **부모를 따라
+     숨는지**를 실제로 따진다: 조각 자신이나 조상 중 하나가 탭 이름표를
+     달았으면 그 조각은 그 탭에서만 보인다. */
+  {
+    const main = careSrc.slice(careSrc.indexOf('<main>'), careSrc.indexOf('</main>'));
+    const where = (careSrc.match(/\['#([\w-]+)',\s*'\w+'\]/g) || [])
+      .map((m) => m.slice(3, m.indexOf("'", 3)));
+    // 클래스로 지목한 것(.card.grow 처럼)은 id 가 아니므로 따로 받는다
+    const whereClass = (careSrc.match(/\['\.([\w.-]+)',\s*'\w+'\]/g) || [])
+      .map((m) => m.slice(3, m.indexOf("'", 3)));
+    /* WHERE 표 말고 코드가 직접 이름표를 다는 곳이 하나 있다 — 설정 체크박스
+       줄은 id 가 없어서 `main .sub` 로 한꺼번에 묶는다. 그 줄이 사라지면
+       설정이 모든 탭에 새어 나오므로, 여기서 있는지 확인하고 같이 센다. */
+    const bulk = /querySelectorAll\('main \.sub'\)[\s\S]{0,200}?setAttribute\('data-tabof', 'prefs'\)/
+                   .test(careSrc);
+    ok('설정 줄을 묶어 이름표 다는 코드가 남아 있다', bulk);
+    if (bulk) whereClass.push('sub');
+
+    // 어느 탭에서나 보여야 하는 머리글 줄 — 이름·나이·경험치 막대
+    const ALWAYS = ['name', 'age', 'badge', 'rename', 'traits', 'stage', 'ver',
+                    'met', 'metLine', 'expBar', 'expText', 'bare', 'reset',
+                    'restart', 'tabs', 'tip'];
+
+    const VOID = ['input', 'img', 'br', 'hr', 'meta', 'link'];
+    const stack = [];
+    const loose = [];
+    const re = /<(\/?)([a-zA-Z][\w-]*)([^>]*)>/g;
+    let m;
+    while ((m = re.exec(main))) {
+      const closing = m[1] === '/', tag = m[2].toLowerCase(), attrs = m[3];
+      if (closing) { if (stack.length) stack.pop(); continue; }
+      const idM = attrs.match(/\bid="([\w-]+)"/);
+      const clsM = attrs.match(/\bclass="([^"]+)"/);
+      const id = idM ? idM[1] : null;
+      const cls = clsM ? clsM[1].trim().split(/\s+/) : [];
+      const tagged =
+        (id && (where.indexOf(id) >= 0 || ALWAYS.indexOf(id) >= 0)) ||
+        whereClass.some((sel) => sel.split('.').every((c) => cls.indexOf(c) >= 0));
+      const covered = tagged || stack.some((f) => f.covered);
+      if (id && !covered) loose.push(id);
+      if (!VOID.indexOf(tag) >= 0) { /* noop */ }
+      if (VOID.indexOf(tag) < 0 && !/\/>$/.test(m[0])) stack.push({ covered: covered });
+    }
+    ok('탭 이름표가 없는 조각이 없다', loose.length === 0, loose.join(', '));
+
+    // 반대로, WHERE 가 없는 조각을 가리키고 있으면 그 탭은 영영 비어 있다
+    const ids = (main.match(/\bid="([\w-]+)"/g) || []).map((x) => x.slice(4, -1));
+    const ghost = where.filter((id) => ids.indexOf(id) < 0);
+    ok('WHERE 가 가리키는 조각이 실제로 있다', ghost.length === 0, ghost.join(', '));
+    ok('알아두기 탭에 자리가 있다', ids.indexOf('guide') >= 0 && where.indexOf('guide') >= 0);
+  }
+
   // 기력이 모자라면 재주는 정말 막혀야 한다
   const tired = care.blank(); care.hatch(tired);
   tired.energy = 11; tired.tricks = ['앉아'];

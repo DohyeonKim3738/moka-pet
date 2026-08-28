@@ -25,6 +25,10 @@ contextBridge.exposeInMainWorld('care', {
   setFur: (hex) => ipcRenderer.send('care-fur', hex),
   setEyes: (v) => ipcRenderer.send('care-eyes', v),
 
+  /* 알아두기 탭의 표. 규칙에서 뽑아낸 것이고 한 번 만들면 안 바뀌므로
+     상태 갱신에 얹지 않고 필요할 때 한 번만 물어본다. */
+  guide: () => ipcRenderer.invoke('care:guide'),
+
   /* 모카펫 설정 창을 없애고 이리로 합쳤다 — 이름이 같은 「설정」이 두 군데
      있는데 나뉜 기준이 없었다(둘 다 앱 전체 설정이다). */
   onTab: (fn) => ipcRenderer.on('care-tab', (_e, t) => fn(t)),

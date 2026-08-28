@@ -220,6 +220,22 @@ button:disabled{pointer-events:none}
 #traits .tag{border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:11.5px}
 #traits .tag b{font-weight:700;color:var(--text)}
 #traits .tag.why{border-style:dashed;color:var(--muted);margin:0}
+#guide h3{font-size:12.5px;margin:16px 0 6px;color:var(--text)}
+#guide h3:first-child{margin-top:0}
+#guide p.lead{font-size:12px;color:var(--muted);margin:0 0 8px;line-height:1.6}
+#guide table{width:100%;border-collapse:collapse;font-size:11.5px}
+#guide th,#guide td{padding:4px 5px;border-bottom:1px solid var(--line);
+  text-align:right;white-space:nowrap}
+#guide th:first-child,#guide td:first-child{text-align:left}
+#guide thead th{color:var(--muted);font-weight:600}
+#guide tbody tr.me{background:var(--accent);color:#fff}
+#guide tbody tr.me td{border-bottom-color:transparent}
+#guide tbody tr.base td{color:var(--muted)}
+#guide td.up{color:#C9492F}
+#guide td.dn{color:#2E7D32}
+#guide tbody tr.me td.up,#guide tbody tr.me td.dn{color:#fff;font-weight:700}
+#guide .wrap{overflow-x:auto}
+#guide .note{font-size:11.5px;color:var(--muted);margin:6px 0 0;line-height:1.6}
 .grow .pair{display:flex;align-items:flex-end;justify-content:center;gap:18px}
 .grow figure{margin:0;width:96px;text-align:center}
 .grow .art{position:relative;height:96px;display:flex;align-items:flex-end;justify-content:center}
@@ -399,6 +415,7 @@ button:disabled{pointer-events:none}
       <div id="badges"></div>
       <div id="missions"></div>
       <div id="log"></div>
+      <div id="guide"></div>
     </div>
   </main>
 
@@ -431,7 +448,7 @@ button:disabled{pointer-events:none}
    * — 그러면 「돌보기…」와 「설정…」이 구분되지도 않는다. 여는 쪽이
    * 어디로 갈지 정하고, 이름은 그 자리를 그대로 가리킨다. */
   var TABS = [['care', '돌보기'], ['grow', '성장'], ['family', '가족'],
-              ['room', '꾸미기'], ['prefs', '설정']];
+              ['room', '꾸미기'], ['guide', '알아두기'], ['prefs', '설정']];
 
   /* 무엇이 어느 탭인지. 왼쪽은 선택자, 오른쪽은 탭.
      여기 없는 것은 어느 탭에서나 보인다(이름·나이 줄처럼). */
@@ -439,10 +456,12 @@ button:disabled{pointer-events:none}
     ['#gameCard', 'care'], ['#s-hunger', 'care'], ['#s-fun', 'care'],
     ['#s-energy', 'care'], ['#s-clean', 'care'], ['#acts', 'care'],
     ['#menu', 'care'], ['#tricks', 'care'], ['#hint', 'care'],
+    ['#whyacts', 'care'],
     ['.card.grow', 'grow'], ['#missions', 'grow'], ['#log', 'grow'],
     ['#metLine', 'family'], ['#roster', 'family'], ['#family', 'family'],
     ['#tree', 'family'],
     ['#look', 'room'], ['#room', 'room'], ['#badges', 'room'],
+    ['#guide', 'guide'],
     ['#prefsBox', 'prefs']
   ];
 
@@ -1225,6 +1244,123 @@ button:disabled{pointer-events:none}
     if (bare) bare.addEventListener('click', function(){ api.clearProps(); });
   }
 
+  /* ---------- 알아두기 ----------
+     성격이 어떻게 정해지고 무엇을 바꾸는지를 사람이 볼 수 있게 편다.
+     ★숫자는 여기 적지 않는다 — care.js 가 규칙에서 뽑아 준 것을 그대로
+     그린다(care.guide()). 화면에 옮겨 적으면 규칙을 고칠 때마다 두 벌이
+     어긋난다. 이 저장소가 이미 여러 번 그랬다. */
+  var guideData = null, guideDrawn = false;
+
+  function esc(t){
+    return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* 기준(평범/보통)과 다른 값에만 색을 준다 — 전부 칠하면 무엇이 다른지 안 보인다.
+     ★방향은 열마다 다르다. 처음엔 "큰 값은 붉게"로 뭉뚱그렸더니 재주
+     성공률 43%가 '손이 더 가는 쪽'이라며 붉게 칠해졌다 — 성공률은 높을수록
+     좋은 값이다. 그래서 열마다 무엇이 '손이 더 가는 쪽'인지 따로 적는다.
+       busyShort : 짧을수록 손이 더 간다(배고픔·즐거움·기운·응아)
+       busyHigh  : 클수록 부산하다(돌아다님)
+       goodHigh  : 클수록 좋다(재주 성공률) */
+  function cell(v, base, suffix, dir){
+    var cls = '';
+    if (Math.abs(v - base) > 1e-9) {
+      var busy = (dir === 'busyShort') ? v < base
+               : (dir === 'goodHigh')  ? v < base
+               :                         v > base;
+      cls = busy ? ' class="up"' : ' class="dn"';
+    }
+    return '<td' + cls + '>' + v + (suffix || '') + '</td>';
+  }
+
+  function natureRows(rows, mine){
+    var base = rows[0].effects;
+    return rows.map(function(r){
+      var e = r.effects, cls = [];
+      if (r.name === mine) cls.push('me');
+      if (!r.parts.length) cls.push('base');
+      return '<tr' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + '>' +
+        '<td>' + esc(r.name) + (r.parts.length > 1 ? ' <span style="opacity:.6">(' + r.parts.map(esc).join('+') + ')</span>' : '') + '</td>' +
+        cell(e.hungerH, base.hungerH, 'h', 'busyShort') +
+        cell(e.funH,    base.funH,    'h', 'busyShort') +
+        cell(e.energyH, base.energyH, 'h', 'busyShort') +
+        cell(e.trick,   base.trick,   '%', 'goodHigh') +
+        cell(e.poopH,   base.poopH,   'h', 'busyShort') +
+        cell(e.wander,  base.wander,  '',  'busyHigh') +
+        '</tr>';
+    }).join('');
+  }
+
+  function drawGuide(c){
+    var host = document.getElementById('guide');
+    if (!host) return;
+    if (!guideData) {
+      if (!guideDrawn) {
+        guideDrawn = true;
+        host.innerHTML = '<div class="card"><p class="lead">불러오는 중…</p></div>';
+        // ★표는 규칙에서 뽑아 오는 것이라 창을 여는 동안 한 번이면 된다
+        if (!api.guide) { host.innerHTML = ''; return; }
+        api.guide().then(function(g){ guideData = g; drawGuide(lastState || c); })
+                   .catch(function(){ host.innerHTML = ''; });
+      }
+      return;
+    }
+    var g = guideData;
+    var mine = c && c.personality;
+    var myBuild = c && c.build;
+
+    var h = '<div class="card">';
+
+    h += '<h3>성격은 어떻게 정해지나요</h3>';
+    h += '<p class="lead">고르는 게 아니라 <b>키운 방식이 쌓여서</b> 정해집니다. ' +
+         '점수는 하루에 ' + g.rules.decay + '%씩 줄어들어, 옛날 습관이 아니라 <b>요즘 습관</b>이 성격이 됩니다. ' +
+         g.rules.fromAge + '살부터 붙습니다.</p>';
+    h += '<div class="wrap"><table><thead><tr><th>무엇을 하면</th><th style="text-align:left">무엇이 쌓이나</th></tr></thead><tbody>' +
+         g.sources.map(function(s){
+           return '<tr><td>' + esc(s.act) + '</td><td style="text-align:left">' +
+             (s.gains.length
+                ? s.gains.map(function(x){
+                    return esc(x.name) + ' +' + (x.min === x.max ? x.min : x.min + '~' + x.max);
+                  }).join('　')
+                : '<span style="opacity:.55">쌓이는 게 없어요</span>') +
+             '</td></tr>';
+         }).join('') + '</tbody></table></div>';
+    h += '<p class="note">한 갈래가 2등보다 ' + g.rules.solo + '배 앞서면 그 이름이, ' +
+         '앞선 두 갈래가 3등보다 ' + g.rules.lead + '배 앞서면 <b>둘을 합친 이름</b>이 붙습니다. ' +
+         '셋 이상 엉키면 평범입니다.</p>';
+
+    h += '<h3>성격에 따라 달라지는 것</h3>';
+    h += '<p class="lead">시간은 가득 찬 상태에서 <b>0이 될 때까지</b> 걸리는 시간입니다. ' +
+         '맨 윗줄(평범)이 기준입니다. <span class="up">붉은 값</span>은 손이 더 가는 쪽, ' +
+         '<span class="dn">푸른 값</span>은 덜 가는 쪽이고, ' +
+         '재주만은 성공률이라 <span class="dn">높을수록 푸릅니다</span>.' +
+         (mine ? ' 지금 이 아이는 <b>' + esc(mine) + '</b>입니다.' : '') + '</p>';
+    h += '<div class="wrap"><table><thead><tr><th>성격</th><th>배고픔</th><th>즐거움</th>' +
+         '<th>기운</th><th>재주</th><th>응아</th><th>돌아다님</th></tr></thead><tbody>' +
+         natureRows(g.natures, mine) + '</tbody></table></div>';
+    h += '<p class="note">이 밖에 다정 계열은 쓰다듬을 때 즐거움이 더 오르고, ' +
+         '먹보 계열은 간식 즐거움이 1.5배에 살이 더 붙습니다.</p>';
+
+    h += '<h3>무게에 따라 달라지는 것</h3>';
+    h += '<p class="lead">간식을 많이 주면 넓고 낮아지고, 많이 놀아주면 길쭉해집니다. ' +
+         '무게 보정은 성격 보정에 <b>겹쳐서</b> 적용됩니다.</p>';
+    var bb = g.builds[1].effects;
+    h += '<div class="wrap"><table><thead><tr><th>몸</th><th>기운</th>' +
+         '<th>놀 때 드는 힘</th><th>산책 소모</th></tr></thead><tbody>' +
+         g.builds.map(function(b){
+           var e = b.effects;
+           return '<tr class="' + (b.key === myBuild ? 'me' : (b.key === 'normal' ? 'base' : '')) + '">' +
+             '<td>' + esc(b.name) + '</td>' +
+             cell(e.energyH, bb.energyH, 'h', 'busyShort') +
+             cell(e.playCost, bb.playCost, '배', 'busyHigh') +
+             cell(e.walkBurn, bb.walkBurn, '배', 'busyHigh') +
+             '</tr>';
+         }).join('') + '</tbody></table></div>';
+
+    h += '</div>';
+    host.innerHTML = h;
+  }
+
   function drawBadges(c){
     var host = document.getElementById('badges');
     if (c.egg || !(c.badges || []).length) { host.innerHTML = ''; return; }
@@ -1287,6 +1423,7 @@ button:disabled{pointer-events:none}
     drawBadges(c);
     drawMissions(c);
     drawLog(c);
+    drawGuide(c);
     var met = document.getElementById('met');
     var restart = document.getElementById('restart');
     if (c.total) met.textContent = '만난 친구 ' + c.met + ' / ' + c.total + '   ·   ';
