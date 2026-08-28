@@ -401,6 +401,8 @@
       })
     },
     bowtie: {
+      /* 앞에서만 보이는 것 — 뒤로 돌면 등에 붙어 보이면 안 된다 */
+      front: true,
       // 목에 걸린다 — 머리 아래끝 기준
       label: '나비넥타이', at: [11, 22], belowHead: -4,
       art: worn(function (g) {
@@ -412,6 +414,8 @@
       })
     },
     overalls: {
+      /* 앞에서만 보이는 것 — 뒤로 돌면 등에 붙어 보이면 안 된다 */
+      front: true,
       label: '멜빵반바지', at: [11, 22],
       art: worn(function (g) {
         g = P.stamp(g, garment([20, 22, 22, 22, 22, 22, 20, 18, 14], 'C'), 2, 10);  // shorts
@@ -433,6 +437,8 @@
        the cloth flaring out past both shoulders. Covering the chest made
        it an apron. */
     apron: {
+      /* 앞에서만 보이는 것 — 뒤로 돌면 등에 붙어 보이면 안 된다 */
+      front: true,
       /* The body slot draws in FRONT, which made the cape read as an
          apron — so an actual apron is the one thing this slot is good at.
          A bib, a waist tie, and a pocket. */
@@ -451,6 +457,8 @@
       })
     },
     medal: {
+      /* 앞에서만 보이는 것 — 뒤로 돌면 등에 붙어 보이면 안 된다 */
+      front: true,
       /* A ribbon round the neck and a disc on the chest. The disc has to
          sit low, or it disappears under the chin. */
       // 목줄이 목에서 시작한다 — 머리 아래끝 기준

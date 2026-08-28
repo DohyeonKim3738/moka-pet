@@ -631,6 +631,10 @@ console.log('# 몸통 소품이 체형 따라 뭉개지지 않는다');
   function gearWidth(build, key) {
     const m = window.SPECIES.at('capybara', 'adult', build).markup()
       .match(new RegExp('data-gear="' + key + '"[\\s\\S]*?<\\/g>'));
+    // ★소품이 통째로 빠지면 여기서 터진다 — 그러면 검사 전체가 멈추고
+    // 실패 한 줄도 안 남아서, 결과만 보면 '통과'처럼 읽힌다. 실제로
+    // 그렇게 한 번 잘못 읽었다. 없으면 -1 로 알려 주고 계속 간다
+    if (!m) return -1;
     const box = [...m[0].matchAll(/x="(\d+)"[^>]*width="(\d+)"/g)]
       .map((g) => [+g[1], +g[1] + +g[2]]);
     return Math.max(...box.map((b) => b[1])) - Math.min(...box.map((b) => b[0]));
@@ -638,10 +642,11 @@ console.log('# 몸통 소품이 체형 따라 뭉개지지 않는다');
 
   const builds = ['slim', 'normal', 'plump', 'heavy'];
   const medal = builds.map((b) => gearWidth(b, 'medal'));
-  ok('금메달은 체형이 달라도 같은 크기', medal.every((w) => w === medal[0]), medal.join('/'));
+  ok('금메달은 체형이 달라도 같은 크기',
+     medal[0] > 0 && medal.every((w) => w === medal[0]), medal.join('/'));
 
   const hoodie = builds.map((b) => gearWidth(b, 'hoodie'));
-  ok('옷은 체형 따라 넓어진다', hoodie[0] < hoodie[3], hoodie.join('/'));
+  ok('옷은 체형 따라 넓어진다', hoodie[0] > 0 && hoodie[0] < hoodie[3], hoodie.join('/'));
 
   // ...and because it does not stretch, it has to fit the narrowest chest
   // there is, or the ribbon hangs off the side of a slim pet.
@@ -650,7 +655,10 @@ console.log('# 몸통 소품이 체형 따라 뭉개지지 않는다');
     ['capybara', 'dodam', 'danchu', 'crab', 'haru'].forEach((sk) => {
       builds.forEach((b) => {
         const sp = window.SPECIES.at(sk, 'adult', b);
-        const m = sp.markup().match(new RegExp('data-gear="' + key + '"[\\s\\S]*?<\\/g>'))[0];
+        const hit = sp.markup().match(new RegExp('data-gear="' + key + '"[\\s\\S]*?<\\/g>'));
+        // 소품이 통째로 빠졌으면 터지지 말고 그 사실을 말한다
+        if (!hit) { bad.push(sk + '/' + b + ' 없음'); return; }
+        const m = hit[0];
         const rows = {};
         for (const g of m.matchAll(/x="(\d+)"[^>]*y="(\d+)"[^>]*width="(\d+)"/g)) {
           const x = +g[1] / 5, y = +g[2] / 5, w = +g[3] / 5;
@@ -1086,6 +1094,57 @@ console.log('# 왜 지금 못 하는가');
      (careSrc.match(/c\.energy\s*<\s*\d+/g) || []).join(', '));
   ok('트레이 메뉴의 재주가 판정을 쓴다',
      /care\.blocked\(c\)\.show/.test(mainSrc));
+
+  /* ---------- 뒤로 돌았을 때 ----------
+     빙글·구르기·원반던지기는 뒷모습 덮개(backHead/backBody)를 띄워 등을
+     보인다. 그런데 몸 소품이 덮개보다 **나중에** 그려져서, 등에 나비넥타이가
+     붙어 보였다. 눈으로 보기 전에는 몰랐다. */
+  {
+    const m = window.SPECIES.get('dodam').markup();
+    const back = m.indexOf('id="backBody"');
+    const backHead = m.indexOf('id="backHead"');
+    const at = (k) => m.indexOf('data-gear="' + k + '"');
+
+    ok('뒷모습 덮개가 둘 다 있다', back > 0 && backHead > 0);
+
+    /* ★먼저 '있는지'부터 본다. 자리를 앞뒤로 나누다 보면 어느 쪽에도 안
+       담기는 수가 있는데, 그러면 `at(k) < back` 이 -1 < 34096 이라 **사라진
+       소품이 '잘 가려졌다'로 통과한다.** 실제로 이 구멍에 한 번 걸렸다. */
+    const gone = Object.keys(window.GEAR.items.body).filter((k) => at(k) < 0);
+    ok('몸 소품이 하나도 빠지지 않았다', gone.length === 0, gone.join(', '));
+
+    // 앞에서만 보이는 장식은 덮개에 가려야 한다
+    ['bowtie', 'medal', 'apron', 'overalls'].forEach((k) => {
+      ok('뒤로 돌면 ' + (window.GEAR.items.body[k].label || k) + ' 이(가) 안 보인다',
+         at(k) < back, String(at(k)) + ' vs ' + back);
+      ok((window.GEAR.items.body[k].label || k) + ' 은 앞면 전용이라 밝혀 둔다',
+         window.GEAR.items.body[k].front === true);
+    });
+
+    /* 몸을 감는 옷은 반대다 — 뒤에서도 보여야 한다. 다 가려 버리면 뒤를
+       도는 순간 옷을 벗은 것처럼 보인다. */
+    ['scarf', 'hoodie', 'robe', 'cape'].forEach((k) => {
+      ok('뒤로 돌아도 ' + (window.GEAR.items.body[k].label || k) + ' 은 남는다',
+         at(k) > back, String(at(k)) + ' vs ' + back);
+      ok((window.GEAR.items.body[k].label || k) + ' 은 앞면 전용이 아니다',
+         !window.GEAR.items.body[k].front);
+    });
+
+    // 안경은 얼굴에 있으니 뒤에서 보이면 안 된다
+    Object.keys(window.GEAR.items.eyes).forEach((k) => {
+      ok('뒤로 돌면 ' + (window.GEAR.items.eyes[k].label || k) + ' 이 안 보인다',
+         at(k) < backHead);
+    });
+
+    // 모자는 뒤에서도 보이는 게 맞다
+    ok('뒤로 돌아도 모자는 남는다', at('crown') > backHead);
+
+    // 자리가 둘로 나뉘어도 화면이 둘 다 켜야 한다
+    ok('몸 소품 자리가 둘이다',
+       (m.match(/data-slot="body"/g) || []).length === 2);
+    ok('그래도 id 는 하나뿐이다',
+       (m.match(/id="slot-body"/g) || []).length === 1);
+  }
 
   /* ---------- 하이파이브 때 손이 앞으로 오는가 ----------
      SVG 에는 z-index 가 없다 — 그리는 순서가 곧 앞뒤다. 팔은 몸보다 먼저

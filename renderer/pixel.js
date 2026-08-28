@@ -329,7 +329,7 @@
      몸통이 짧아진 만큼 옷을 올려 주는 보정인데, 목에 있는 것은 그만큼
      머리 속으로 밀려 들어가 아기와 어린이에서는 아예 보이지 않았다.
      `belowHead: n` 을 단 소품은 머리 아래끝을 기준으로 놓는다. */
-  function slotGroup(kind, off, fat, headY, headBottom, dup) {
+  function slotGroup(kind, off, fat, headY, headBottom, dup, pick) {
     var items = (root.GEAR && root.GEAR.items[kind]) || {};
     var id = (kind === 'head') ? 'prop' : ('slot-' + kind);
     /* id 말고 data-slot 으로도 찾을 수 있게 해 둔다 — 하이파이브 때 팔을 앞에
@@ -338,6 +338,7 @@
     var html = '<g' + (dup ? '' : ' id="' + id + '"') + ' data-slot="' + kind + '">';
     Object.keys(items).forEach(function (key) {
       var it = items[key];
+      if (pick && !pick(it)) return;
       // Clothing is cut to fit, so it grows and shrinks with the body.
       // A hard object does not: widen() adds or removes columns at the
       // ROW CENTRE, which on a slim pet ate four of the eight dots out of
@@ -397,9 +398,18 @@
           // The same silhouette with no belly on it, drawn OVER the front and
           // transparent until something turns the pet around. Covering the
           // front is cheaper and steadier than swapping the sprite out.
+          /* ★뒤로 돌면(빙글·구르기·원반) 등에 나비넥타이가 붙어 보였다.
+             앞면 장식은 뒷모습 덮개(backBody) **아래**에 그려 가려지게 하고,
+             몸을 감는 옷(목도리·후드티·도포·망토)만 위에 남긴다 — 뒤에서도
+             보이는 게 맞으니까. 자리는 둘로 나뉘어도 화면은 data-slot 으로
+             둘 다 켠다. */
+          slotGroup('body', off('body'), sp.gearFat || 0, null,
+                    p.head ? p.head.y + p.head.rows.length : null,
+                    true, function (it) { return !!it.front; }) +
           backLayer('backBody', p.body) +
           slotGroup('body', off('body'), sp.gearFat || 0, null,
-                    p.head ? p.head.y + p.head.rows.length : null) +
+                    p.head ? p.head.y + p.head.rows.length : null,
+                    false, function (it) { return !it.front; }) +
         '</g>' +
         '<g id="headGaze"><g id="headAnim">' +
           (p.headBack ? encode(p.headBack.rows, p.headBack.x, p.headBack.y) : '') +
