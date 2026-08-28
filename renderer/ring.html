@@ -33,14 +33,24 @@ button{
 }
 button:hover{background:#F6E2C0}
 button:active{box-shadow:1px 1px 0 rgba(59,50,42,.22);transform:translate(2px,2px)}
-button:disabled{opacity:.45;cursor:default}
+/* ★비활성 버튼은 마우스 이벤트를 삼켜 title 툴팁이 뜨지 않는다.
+   통과시키고, 이유는 아래 줄에 글로 띄운다 — 막대는 창이 작아서
+   떠 있는 상자보다 줄이 낫다(창이 그만큼 늘어난다). */
+button:disabled{opacity:.45;cursor:default;pointer-events:none}
 .row .no{font-size:10px;color:#A6957F;margin-left:4px;align-self:center}
+/* ★힌트는 막대 '위'에 둔다. 막대는 창 아래에 붙어 있고 창은 위로 자라므로,
+   아래에 두면 막대가 커서에서 밀려나 힌트가 스스로를 지워 버린다
+   (첫 번째 호버가 안 뜨던 이유). */
+#why{font-size:11px;color:#6B5E4E;background:#F3E4C6;border-radius:8px;
+  padding:4px 9px;margin-bottom:5px;white-space:nowrap}
+#why:empty{display:none}
 button[hidden]{display:none}
 #egg{opacity:1;font-size:10px}
 button .ic{display:block;font-size:15px}
 </style></head>
 <body>
   <div id="wrap">
+  <div id="why"></div>
   <div id="bar">
     <button id="feed"><span class="ic">🍚</span>밥</button>
     <button id="play"><span class="ic">🎾</span>놀기</button>
@@ -107,6 +117,8 @@ button .ic{display:block;font-size:15px}
   ['feed','play'].forEach(function(k){
     document.getElementById(k).addEventListener('click', function(){
       open = (open === k) ? null : k;
+      hint = null;
+      document.getElementById('why').textContent = '';
       drawTray();
     });
   });
@@ -151,6 +163,12 @@ button .ic{display:block;font-size:15px}
        "밥이 안 되는데 밥 버튼이 켜져 있다"로 읽힌다. 그럴 때는 무엇이
        막혔고 무엇이 되는지 버튼에 적어 둔다. */
     gate('feed', (why.feed && why.snack) ? why.feed : null);
+    // 왜 막혔는지를 버튼에 심어 둔다 — 아래에서 자리로 찾아 띄운다
+    [['feed', (why.feed && why.snack) ? why.feed : null],
+     ['play', why.play], ['sleep', why.sleep]].forEach(function(p){
+      var b = document.getElementById(p[0]);
+      if (p[1]) b.setAttribute('data-why', p[1]); else b.removeAttribute('data-why');
+    });
     if (why.feed && !why.snack) {
       document.getElementById('feed').title = '밥은 ' + why.feed + ' — 간식은 아직 괜찮아요';
     } else if (why.snack && !why.feed) {
@@ -176,6 +194,27 @@ button .ic{display:block;font-size:15px}
    *
    * mouseleave does not bubble, so a plain listener on the root element
    * fires once, when the pointer actually leaves the page. */
+  /* 막힌 버튼 위에 커서를 두면 이유를 한 줄로 띄운다. 트레이가 열려
+     있을 때는 건드리지 않는다 — 고르던 것을 지워 버리면 안 된다. */
+  var hint = null;
+  function whyAt(x, y){
+    var hit = null;
+    Array.prototype.forEach.call(document.querySelectorAll('#bar [data-why]'), function(el){
+      var r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) hit = el;
+    });
+    return hit ? hit.getAttribute('data-why') : null;
+  }
+  var whyBox = document.getElementById('why');
+  document.addEventListener('mousemove', function(e){
+    if (open) { if (hint) { hint = null; whyBox.textContent = ''; resize(); } return; }
+    var w = whyAt(e.clientX, e.clientY);
+    if (w === hint) return;
+    hint = w;
+    whyBox.textContent = w || '';
+    resize();
+  });
+
   var root = document.documentElement;
   root.addEventListener('mouseenter', function(){ api.hover(true); });
   root.addEventListener('mouseleave', function(){

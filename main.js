@@ -781,12 +781,7 @@ const GEAR_SLOTS = [
    tables moved to missions.js — the menu then threw on every right-click.
    Nothing loads main.js in a test, so nothing caught it. */
 const EYES = [['기본', 'basic'], ['졸림', 'sleepy'], ['반짝', 'sparkle']];
-const STATES = [
-  ['가만히', 'idle'], ['손 흔들기', 'waving'], ['점프', 'jumping'],
-  ['오른쪽 달리기', 'running-right'], ['왼쪽 달리기', 'running-left'],
-  ['작업 중', 'running'], ['기다리는 중', 'waiting'],
-  ['검토 중', 'review'], ['실패', 'failed']
-];
+// 「지금 하는 일」(포즈 고르기)을 메뉴에서 뺐다 — 이 목록도 같이 나간다.
 
 function setPetField(key, value) {
   currentPet()[key] = value;
@@ -955,13 +950,6 @@ function buildMenu() {
           : [{ label: '아직 배운 재주가 없어요', enabled: false }]
       };
     })(),
-    {
-      label: '지금 하는 일',
-      submenu: STATES.map(([label, id]) => ({
-        label,
-        click: () => setPose(id, true)   // an explicit pick overrides sleep
-      }))
-    },
     { type: 'separator' },
     /* 털 색 · 눈 · 소품 · 집 · 대표 칭호는 돌보기 창의 「꾸미기」 탭으로
        옮겼다. 같은 것을 두 군데서 고르게 두면 한쪽만 고쳐 놓고 지나가게

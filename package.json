@@ -1,7 +1,7 @@
 {
   "name": "moka-pet",
   "productName": "Moka Pet",
-  "version": "1.29.1",
+  "version": "1.29.2",
   "description": "책상 위 데스크톱 펫 — 커서를 따라 보는 카피바라·고양이·수달·게·시바견",
   "main": "main.js",
   "private": true,

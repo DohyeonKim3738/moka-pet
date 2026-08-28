@@ -104,6 +104,15 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
    끝이었다. 눈에 보이는 줄로 적는다. */
 #whyacts{margin-top:6px;font-size:11px;color:var(--muted);line-height:1.6}
 #whyacts:empty{display:none}
+/* ★비활성 버튼은 마우스 이벤트를 삼킨다 — 그래서 title 툴팁이 아예 뜨지
+   않았다(재렌더 탓인 줄 알았는데 아니었다). 이벤트를 통과시키고 툴팁은
+   직접 그린다. 통과시키면 elementFromPoint 로도 안 잡히므로, 자리를
+   재서 찾는다. */
+button:disabled{pointer-events:none}
+#tip{position:fixed;z-index:99;pointer-events:none;opacity:0;transition:opacity .08s;
+  background:#3B322A;color:#fff;font-size:11.5px;line-height:1.4;padding:5px 9px;
+  border-radius:7px;max-width:230px;box-shadow:0 2px 8px rgba(0,0,0,.22)}
+#tip.on{opacity:1}
 
 #missions ul{list-style:none;margin:0;padding:0}
 #missions li{display:flex;align-items:baseline;gap:8px;font-size:12px;padding:3px 0}
@@ -250,6 +259,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
 <body>
   <header><h1>돌보기 <span id="ver"></span></h1></header>
   <nav id="tabs"></nav>
+  <div id="tip"></div>
   <main>
     <div class="card">
       <div class="who">
@@ -437,6 +447,40 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       b.addEventListener('click', function(){ showTab(b.getAttribute('data-go'), true); });
     });
   }
+
+  /* ---------- 툴팁 ----------
+   * 왜 못 하는지는 비활성 버튼에 달려 있는데, 비활성 버튼은 마우스
+   * 이벤트를 받지 않아 브라우저가 툴팁을 띄우지 못한다. pointer-events 를
+   * 꺼 이벤트를 통과시키고, 커서 아래에 있는 것을 자리로 찾아 직접 그린다.
+   * (통과시키면 elementFromPoint 도 그 버튼을 돌려주지 않는다.) */
+  var tip = document.getElementById('tip');
+  var tipFor = null;
+
+  function whyAt(x, y){
+    var found = null;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-why]'), function(el){
+      if (el.closest('[data-hide]')) return;
+      var r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) found = el;
+    });
+    return found;
+  }
+
+  function moveTip(e){
+    var el = whyAt(e.clientX, e.clientY);
+    if (!el) { tip.classList.remove('on'); tipFor = null; return; }
+    if (el !== tipFor) { tip.textContent = el.getAttribute('data-why'); tipFor = el; }
+    tip.classList.add('on');
+    // 커서 아래에 붙이되 창 밖으로 나가지 않게
+    var w = tip.offsetWidth, h = tip.offsetHeight;
+    var x = Math.min(e.clientX + 12, innerWidth - w - 6);
+    var y = e.clientY + 18;
+    if (y + h > innerHeight - 4) y = e.clientY - h - 10;
+    tip.style.left = Math.max(4, x) + 'px';
+    tip.style.top = Math.max(4, y) + 'px';
+  }
+  document.addEventListener('mousemove', moveTip);
+  document.addEventListener('mouseleave', function(){ tip.classList.remove('on'); tipFor = null; });
 
   tagTabs();
   buildTabs();
@@ -798,7 +842,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
                          : (full || '');
         return '<button data-eat="' + act + ':' + f.id + '"' +
                (cls.length ? ' class="' + cls.join(' ') + '"' : '') +
-               (tip ? ' title="' + tip + '"' : '') +
+               (tip ? ' title="' + tip + '" data-why="' + tip + '"' : '') +
                ((full || f.lock) ? ' disabled' : '') + '>' +
                f.label + (f.lock ? ' 🔒' : '') + '</button>';
       }).join('');
@@ -891,7 +935,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       var spots = (m.prizes || []).map(function(p){ return p.label + ' → ' + p.where; }).join('\n');
       var tail;
       if (m.done) {
-        tail = '<span class="pz"' + (spots ? ' title="' + spots + '"' : '') + '>' +
+        tail = '<span class="pz"' + (spots ? ' title="' + spots + '" data-why="' + spots + '"' : '') + '>' +
                m.prize + '</span>' +
                (m.prizes && m.prizes.length
                  ? '<span class="pzat">' +
@@ -1082,12 +1126,15 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
       var b = document.getElementById(k);
       b.disabled = !!why[k];
       b.title = why[k] || '';
+      if (why[k]) b.setAttribute('data-why', why[k]); else b.removeAttribute('data-why');
     });
     var sleep = document.getElementById('sleep');
     sleep.textContent = c.sleeping ? '깨우기' : '재우기';
     sleep.disabled = !!why.sleep;
     sleep.title = why.sleep ||
       (c.napKind === 'auto' ? '스스로 잠들었어요 — 깨우면 그대로 깨어 있어요' : '');
+    if (sleep.title) sleep.setAttribute('data-why', sleep.title);
+    else sleep.removeAttribute('data-why');
     // 막힌 것들을 한 줄로 적어 둔다 — 툴팁은 다시 그려지면 사라진다
     var stuck = ['walk', 'train', 'sleep', 'clean']
       .filter(function(k){ return why[k]; })
