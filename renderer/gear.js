@@ -378,7 +378,9 @@
 
   var BODY = {
     scarf: {
-      label: '목도리', at: [11, 22],
+      /* 목에 걸린다 — 머리 아래끝 기준. 몸 소품의 어린 단계 보정을
+         그대로 받으면 머리 속으로 들어간다. */
+      label: '목도리', at: [11, 22], belowHead: -4,
       art: worn(function (g) {
         g = P.stamp(g, garment([16, 20, 20, 18], 'R'), 3, 2);   // wrap at the neck
         g = P.box(g, 16, 5, 5, 9, 'K', 'R');                    // hanging end
@@ -399,7 +401,8 @@
       })
     },
     bowtie: {
-      label: '나비넥타이', at: [11, 22],
+      // 목에 걸린다 — 머리 아래끝 기준
+      label: '나비넥타이', at: [11, 22], belowHead: -4,
       art: worn(function (g) {
         g = P.box(g, 6, 3, 5, 5, 'K', 'R');
         g = P.box(g, 15, 3, 5, 5, 'K', 'R');
@@ -433,7 +436,8 @@
       /* The body slot draws in FRONT, which made the cape read as an
          apron — so an actual apron is the one thing this slot is good at.
          A bib, a waist tie, and a pocket. */
-      label: '앞치마', at: [11, 22], lock: 'chef',
+      // 목끈과 가슴받이가 정체다 — 어린 단계에서 그게 머리에 먹혔다
+      label: '앞치마', at: [11, 22], belowHead: -4, lock: 'chef',
       art: worn(function (g) {
         g = P.stamp(g, garment([12, 14, 14, 16, 18, 18, 18, 16], 'W'), 4, 4);
         g = P.hline(g, 8, 2, 10, 'R');          // neck strap
@@ -449,7 +453,8 @@
     medal: {
       /* A ribbon round the neck and a disc on the chest. The disc has to
          sit low, or it disappears under the chin. */
-      label: '금메달', at: [11, 22], lock: 'alltricks', stretch: false,
+      // 목줄이 목에서 시작한다 — 머리 아래끝 기준
+      label: '금메달', at: [11, 22], belowHead: -4, lock: 'alltricks', stretch: false,
       /* It does not stretch with the body, so it has to fit the SLIMMEST
          one: the ribbon stays inside dots 17..30, which is where a slim
          pet's chest is. Any wider and it hangs off the side. */
@@ -492,7 +497,9 @@
          the pet, so anything that covers the chest reads as an apron —
          two side panels read as pom-poms. Cloth over the shoulders,
          belly left showing, is what says "cape" from the front. */
-      label: '별 망토', at: [11, 22], lock: 'legend',
+      /* 어깨에 걸치는 것이라 윗부분이 곧 정체다 — 아기에서는 그 윗부분이
+         통째로 머리에 먹혀 망토가 아예 보이지 않았다. */
+      label: '별 망토', at: [11, 22], belowHead: -4, lock: 'legend',
       art: worn(function (g) {
         g = P.stamp(g, garment([14, 18, 22, 24, 24, 24, 22], 'G'), 0, 3);
         g = P.hline(g, 8, 2, 8, 'Y');           // gold clasp at the throat

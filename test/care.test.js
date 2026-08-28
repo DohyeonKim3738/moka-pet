@@ -1236,6 +1236,75 @@ console.log('# 미션 상품은 잠겨 있어야 한다');
   ok('메뉴가 모르는 잠금은 없다', stray.length === 0, stray.join(','));
 }
 
+console.log('# 목에 거는 소품이 머리에 가려지지 않는가');
+{
+  /* 몸 소품은 어린 단계에서 위로 당겨진다(아기 -6, 어린이 -4, 청소년 -2).
+     몸통이 짧아진 만큼 옷을 올려 주는 보정인데, 나비넥타이처럼 목에 있는
+     것은 그만큼 머리 속으로 밀려 들어간다 — 아기는 스물세 줄이 전부
+     머리 밑이라 아예 보이지 않았다. `belowHead` 로 머리 아래끝을 기준
+     삼아 고쳤고, 아홉 종 · 아홉 단계를 전부 본다. */
+  global.window = global;
+  require('../renderer/pixel.js'); require('../renderer/tint.js');
+  require('../renderer/gear.js'); require('../renderer/species.js');
+
+  const STAGES = ['baby', 'child', 'teen', 'adult', 'elder', 'sage', 'wise', 'spirit', 'legend'];
+  const NECK = ['bowtie', 'scarf', 'medal'];
+
+  const rowsOf = (markup, key) => {
+    const i = markup.indexOf('data-gear="' + key + '"');
+    if (i < 0) return null;
+    const seg = markup.slice(i, markup.indexOf('</g>', i));
+    const ys = [...seg.matchAll(/y="(\d+)"/g)].map((m) => +m[1] / 5);
+    return ys.length ? ys : null;
+  };
+
+  const bad = [];
+  window.SPECIES.list.forEach((spx) => NECK.forEach((k) => STAGES.forEach((st) => {
+    const sp = window.SPECIES.at(spx.key, st, 'normal');
+    const ys = rowsOf(sp.markup(), k);
+    if (!ys) { bad.push(spx.key + '/' + k + '/' + st + ' 안 그려짐'); return; }
+    const headBottom = sp.parts.head.y + sp.parts.head.rows.length;
+    const hidden = ys.filter((y) => y < headBottom - 1).length;
+    if (hidden / ys.length > 0.5) {
+      bad.push(spx.key + '/' + k + '/' + st + ' ' + hidden + '/' + ys.length);
+    }
+  })));
+  ok('목에 거는 소품이 어느 종·어느 단계에서도 머리에 묻히지 않는다',
+     bad.length === 0, bad.slice(0, 5).join(', '));
+
+  /* ★어느 옷이든 '아예 안 보이는' 곳은 없어야 한다. 별 망토는 아기에서
+     통째로 머리에 먹혀 하나도 보이지 않았다 — 목에 거는 것만 보다가는
+     어깨에 걸치는 것을 놓친다. 옷 전부 × 아홉 종 × 아홉 단계를 본다. */
+  const unseen = [];
+  window.SPECIES.list.forEach((spx) => Object.keys(window.GEAR.items.body).forEach((k) =>
+    STAGES.forEach((st) => {
+      const sp = window.SPECIES.at(spx.key, st, 'normal');
+      const headBottom = sp.parts.head.y + sp.parts.head.rows.length;
+      const rows = rowsOf(sp.markup(), k) || [];
+      const shown = new Set(rows.filter((y) => y >= headBottom - 1)).size;
+      if (shown < 3) unseen.push(spx.key + '/' + k + '/' + st + ' ' + shown + '줄');
+    })));
+  ok('어떤 옷도 어디서나 최소 세 줄은 보인다', unseen.length === 0,
+     unseen.slice(0, 5).join(', '));
+
+  /* 어른의 자리는 그대로여야 한다 — 고치면서 옮겨 놓으면 그것도 버그다.
+     아홉 종 모두 어른의 머리 아래끝이 26 이라, belowHead: -4 는 지금까지의
+     자리(at 의 y=22)를 그대로 재현한다. */
+  const moved = [];
+  window.SPECIES.list.forEach((spx) => {
+    const a = window.SPECIES.at(spx.key, 'adult', 'normal');
+    Object.keys(window.GEAR.items.body).forEach((k) => {
+      const it = window.GEAR.items.body[k];
+      if (it.belowHead === undefined) return;
+      const headBottom = a.parts.head.y + a.parts.head.rows.length;
+      if (headBottom + it.belowHead !== it.at[1]) {
+        moved.push(spx.key + '/' + k + ' ' + (headBottom + it.belowHead) + ' vs ' + it.at[1]);
+      }
+    });
+  });
+  ok('어른이 입은 자리는 예전과 같다', moved.length === 0, moved.slice(0, 4).join(', '));
+}
+
 console.log('# 뒷모습');
 {
   const FACE = /--belly|--nose|#2B2622|#F6C3BB/;

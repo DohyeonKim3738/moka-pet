@@ -324,7 +324,12 @@
      것은 캔버스 한가운데가 머리 중심에 와야 해서 같은 오프셋이 맞지 않는다
      — 게는 머리가 열 칸 아래에 있어 후광만 허공에 떴다.
      `fromHead: n` 을 단 소품은 슬롯 오프셋 대신 머리 y 를 기준으로 놓는다. */
-  function slotGroup(kind, off, fat, headY) {
+  /* headBottom: 머리 아래끝. 목에 걸리는 것(나비넥타이·목도리·금메달)에 쓴다.
+     몸 소품은 어린 단계에서 위로 당겨진다(아기 -6, 어린이 -4, 청소년 -2) —
+     몸통이 짧아진 만큼 옷을 올려 주는 보정인데, 목에 있는 것은 그만큼
+     머리 속으로 밀려 들어가 아기와 어린이에서는 아예 보이지 않았다.
+     `belowHead: n` 을 단 소품은 머리 아래끝을 기준으로 놓는다. */
+  function slotGroup(kind, off, fat, headY, headBottom) {
     var items = (root.GEAR && root.GEAR.items[kind]) || {};
     var id = (kind === 'head') ? 'prop' : ('slot-' + kind);
     var html = '<g id="' + id + '">';
@@ -337,9 +342,12 @@
       // says "this is a thing, not cloth" — draw it at its own size.
       var f = (it.stretch === false) ? 0 : (fat || 0);
       var shift = Math.round(f / 2);
-      var y = (it.fromHead !== undefined && headY !== undefined && headY !== null)
-        ? headY + it.fromHead
-        : it.at[1] + off[1];
+      var y = it.at[1] + off[1];
+      if (it.fromHead !== undefined && headY !== undefined && headY !== null) {
+        y = headY + it.fromHead;
+      } else if (it.belowHead !== undefined && headBottom !== undefined && headBottom !== null) {
+        y = headBottom + it.belowHead;
+      }
       html += '<g data-gear="' + key + '" style="display:none">' +
               encode(widen(it.art, f), it.at[0] + off[0] - shift, y) +
               '</g>';
@@ -387,7 +395,8 @@
           // transparent until something turns the pet around. Covering the
           // front is cheaper and steadier than swapping the sprite out.
           backLayer('backBody', p.body) +
-          slotGroup('body', off('body'), sp.gearFat || 0) +
+          slotGroup('body', off('body'), sp.gearFat || 0, null,
+                    p.head ? p.head.y + p.head.rows.length : null) +
         '</g>' +
         '<g id="headGaze"><g id="headAnim">' +
           (p.headBack ? encode(p.headBack.rows, p.headBack.x, p.headBack.y) : '') +
@@ -404,7 +413,8 @@
           tearGroup(sp.tearAt || [eyes.l[0], eyes.l[1] + eyes.size[1]]) +
           // ...and the back of the head, which covers the face and the eyes
           backLayer('backHead', p.head) +
-          slotGroup('head', off('head'), 0, p.head ? p.head.y : null) +
+          slotGroup('head', off('head'), 0, p.head ? p.head.y : null,
+                    p.head ? p.head.y + p.head.rows.length : null) +
         '</g></g>' +
       '</g>';
 
