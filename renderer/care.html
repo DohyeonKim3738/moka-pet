@@ -1172,7 +1172,14 @@ button:disabled{pointer-events:none}
    * 다른 창에 있었다. 한자리에 모은다. */
   function drawLook(c){
     var host = document.getElementById('look');
-    if (c.egg || !c.gear) { host.innerHTML = ''; return; }
+    /* 알일 때는 고를 것이 하나도 없다. 그냥 비워 두면 「꾸미기」 탭이
+       통째로 빈 화면이 되어 고장으로 보인다 — 왜 비었는지는 말해 준다. */
+    if (c.egg) {
+      host.innerHTML = '<div class="ttl">꾸미기</div>' +
+        '<p class="note">알에서 깨어나면 털 색과 소품, 집을 골라 줄 수 있어요.</p>';
+      return;
+    }
+    if (!c.gear) { host.innerHTML = ''; return; }
 
     var furs = (c.furs || []).map(function(f){
       var on = String(c.fur).toLowerCase() === String(f[1]).toLowerCase();

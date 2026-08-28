@@ -493,6 +493,28 @@ function createWindow() {
   });
 }
 
+/* 모니터가 바뀌면 펫을 화면 안으로 끌어온다.
+ *
+ * ★예전에는 display-metrics-changed 만 들었다. 그건 해상도나 배율이
+ * '바뀔' 때 나는 것이고, 모니터를 뽑으면 display-removed 가 난다 —
+ * 그래서 외부 모니터에 두고 케이블을 뽑으면 펫이 사라진 화면의 좌표에
+ * 그대로 남았다. 앱은 살아 있는데 펫이 안 보이니 고장으로 읽힌다.
+ *
+ * 자고 일어났을 때도 한 번 본다. 덮개를 닫고 옮겨 다니면 잠든 사이에
+ * 화면 구성이 바뀌어 있고, 그때 이벤트가 왔는지는 믿을 수 없다. */
+function keepOnScreen() {
+  if (!win || win.isDestroyed()) return;
+  const b = win.getBounds();
+  const c = clampToDisplays(b.x, b.y, b.width, b.height);
+  if (c.x === b.x && c.y === b.y) return;
+  moveTo(c.x, c.y);
+  cfg.x = c.x; cfg.y = c.y;      // 다음에 켤 때도 거기서 시작하도록
+  saveConfig();
+  placeRing();
+  // 인자 없이 부르면 높이가 120 으로 줄어든다 — 지금 높이를 그대로 넘긴다
+  if (agendaWin && !agendaWin.isDestroyed()) placeAgenda(agendaWin.getBounds().height);
+}
+
 // keep the pet from being stranded off-screen when monitors change
 function clampToDisplays(x, y, w, h) {
   const displays = screen.getAllDisplays();
@@ -1152,10 +1174,6 @@ function checkMissions() {
   pushCare();
 }
 
-/* Which accessories are available: the free ones, plus whatever the
-   milestones have handed over. */
-function gearUnlocked(lock) { return !lock || missionDone(lock); }
-
 /* ------------------------------------------------------------------ *
  * updates
  * ------------------------------------------------------------------ */
@@ -1280,6 +1298,8 @@ function startUpdates() {
   updateTimer = setInterval(maybeCheckUpdate, UPDATE_EVERY);
   try {
     powerMonitor.on('resume', () => setTimeout(maybeCheckUpdate, 8000));
+    // 자는 사이에 모니터가 바뀌어 있을 수 있다
+    powerMonitor.on('resume', () => setTimeout(keepOnScreen, 1500));
   } catch (e) { /* platform without power events */ }
 }
 
@@ -1685,7 +1705,6 @@ function eggTick() {
 function wildUnhatched() {
   return SPECIES.map((s) => s.key).filter((k) => cfg.pets[k] && cfg.pets[k].care.egg);
 }
-function unhatched() { return petIds().filter((k) => cfg.pets[k].care.egg); }
 function hatchedKeys() { return petIds().filter((k) => !cfg.pets[k].care.egg); }
 
 /* ---------- family ----------
@@ -2550,12 +2569,9 @@ if (!app.requestSingleInstanceLock()) {
       // after the windows exist, or there is nowhere to say it
       setTimeout(() => { showBubble(startupNotice); startupNotice = null; }, 2500);
     }
-    screen.on('display-metrics-changed', () => {
-      if (!win || win.isDestroyed()) return;
-      const b = win.getBounds();
-      const c = clampToDisplays(b.x, b.y, b.width, b.height);
-      if (c.x !== b.x || c.y !== b.y) moveTo(c.x, c.y);
-    });
+    // 뽑기 · 꽂기 · 해상도 변경 — 셋 다 화면 구성이 달라지는 순간이다
+    ['display-metrics-changed', 'display-removed', 'display-added']
+      .forEach((ev) => screen.on(ev, keepOnScreen));
   });
 
   app.on('window-all-closed', () => app.quit());
@@ -2582,7 +2598,31 @@ function smokeCheck() {
     ['소품 목록', () => gearSlots()],
     ['집 꾸미기 목록', () => roomSlots()],
     ['이정표 진행도', () => MISSIONS.map((m) => missionNow(m))],
-    ['가족 관계', () => petIds().map((a) => petIds().map((b) => pairProblem(a, b)))]
+    ['가족 관계', () => petIds().map((a) => petIds().map((b) => pairProblem(a, b)))],
+    /* 모니터를 뽑으면 펫이 사라진 화면의 좌표에 남았다.
+       ★창을 실제로 멀리 보내는 방식으로는 검사할 수 없다 — macOS 가
+       setBounds 를 화면 안으로 잘라 버려서(60000 → 2768) 창이 애초에
+       나가지지 않고, 그러면 데려오는 코드를 통째로 지워도 통과한다.
+       그래서 OS 가 아니라 '판단'을 검사한다. */
+    ['화면 밖 좌표는 화면 안으로 되돌린다', () => {
+      const onScreen = (x, y, w, h) => screen.getAllDisplays().some((d) => {
+        const a = d.workArea;
+        return x + w > a.x && x < a.x + a.width && y + h > a.y && y < a.y + a.height;
+      });
+      const W = 200, H = 200;
+      [[60000, 60000], [-9000, -9000], [0, 60000]].forEach(([x, y]) => {
+        const c = clampToDisplays(x, y, W, H);
+        if (!onScreen(c.x, c.y, W, H)) {
+          throw new Error(x + ',' + y + ' → ' + c.x + ',' + c.y + ' (아직 화면 밖)');
+        }
+      });
+      // 화면 안에 있던 것은 건드리지 않는다
+      const a = screen.getPrimaryDisplay().workArea;
+      const keep = clampToDisplays(a.x + 100, a.y + 100, W, H);
+      if (keep.x !== a.x + 100 || keep.y !== a.y + 100) {
+        throw new Error('멀쩡한 자리를 옮겼다 → ' + keep.x + ',' + keep.y);
+      }
+    }]
   ];
 
   /* Both halves of the save, because they take different paths. A brand

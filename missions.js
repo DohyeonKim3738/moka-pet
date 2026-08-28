@@ -88,9 +88,14 @@ const LIST = [
 ];
 
 /* ---------- 상품이 어디에 있는가 ----------
- * 이정표를 달성해 상품을 받아도, 그게 트레이의 소품인지 집 꾸미기의
- * 물건인지 알 길이 없었다. "졸업 모자 · 러그를 받았어요" 만 보고
- * 어느 메뉴를 열어야 하는지 찾아 헤매게 된다.
+ * 이정표를 달성해 상품을 받아도 어디서 고르는지 알 길이 없었다.
+ * "졸업 모자 · 러그를 받았어요" 만 보고는 어느 자리를 열어야 하는지
+ * 찾아 헤매게 된다.
+ *
+ * ★한때 '펫을 오른쪽 클릭 → 소품' 이라고 적어 두었는데, 소품이 돌보기
+ * 창의 「꾸미기」 탭으로 옮겨 간 뒤에도 그 문구가 남아 있었다. 화면에
+ * 안 쓰이는 글이라 아무도 못 봤다 — 쓰지 않는 안내문은 틀린 채로 남는다.
+ * 그래서 지금은 화면이 실제로 쓰는 `where` 하나만 만든다.
  *
  * 이름과 자리는 이미 잠금표에 다 있다 — 그걸 뒤집어 읽으면 된다.
  * 손으로 또 적지 않는다. */
@@ -104,8 +109,7 @@ function prizesFor(id) {
       const row = (GEAR_PRIZES[slot] || []).find(([, k]) => k === key);
       out.push({
         label: row ? row[0] : key, key,
-        where: '소품 · ' + (GEAR_SLOT_LABEL[slot] || slot),
-        how: '펫을 오른쪽 클릭 → 소품 → ' + (GEAR_SLOT_LABEL[slot] || slot)
+        where: '꾸미기 · ' + (GEAR_SLOT_LABEL[slot] || slot)
       });
     });
   });
@@ -116,8 +120,7 @@ function prizesFor(id) {
       const side = slot === 'left' || slot === 'right';
       out.push({
         label: lb, key,
-        where: '집 꾸미기 · ' + (side ? '좌우 소품' : label),
-        how: '돌보기 창의 「꾸미기」 → ' + (side ? '왼쪽/오른쪽 소품' : label)
+        where: '꾸미기 · ' + (side ? '좌우 소품' : label)
       });
     });
   });

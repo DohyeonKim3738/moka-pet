@@ -899,6 +899,45 @@ console.log('# 밤에 손으로 깨우기');
   Date.now = real;
 }
 
+console.log('# README 가 코드와 같은 말을 하는가');
+{
+  /* README 는 팀원이 읽는 문서인데 아무도 검사하지 않아 조용히 낡았다 —
+     단계는 여섯이라 적혀 있고 실제로는 아홉이었고, 이정표는 열둘이라
+     적혀 있고 실제로는 열다섯이었다. 숫자만이라도 못 박아 둔다. */
+  const fs4 = require('fs'), path4 = require('path');
+  const doc = fs4.readFileSync(path4.join(__dirname, '..', 'README.md'), 'utf8');
+  const MI = require('../missions.js');
+  global.window = global;
+  require('../renderer/pixel.js'); require('../renderer/tint.js');
+  require('../renderer/gear.js'); require('../renderer/room.js');
+
+  const NUM = { 6: '여섯', 9: '아홉', 12: '열둘', 15: '열다섯', 23: '스물세', 24: '스물네' };
+  const say = (n) => NUM[n] || String(n);
+
+  const stages = care.stageTable().length - 1;          // 알은 단계가 아니다
+  ok('README 의 성장 단계 수', doc.includes(say(stages) + ' 단계로 자랍니다'),
+     say(stages));
+
+  ok('README 의 이정표 수', doc.includes('이정표가 ' + say(MI.LIST.length) + ' 있습니다'),
+     say(MI.LIST.length));
+  ok('README 의 missions.js 설명', doc.includes('이정표 ' + say(MI.LIST.length) + '과'));
+
+  const R = window.ROOM.items;
+  const roomAll = new Set([].concat(
+    Object.keys(R.back), Object.keys(R.floor), Object.keys(R.left)));
+  const roomLocked = Object.keys(MI.ROOM_LOCKS).length;
+  ok('README 의 집 꾸미기 가짓수',
+     doc.includes(say(roomAll.size) + ' 가지 중 ' + say(roomLocked) + '이 이정표 상품'),
+     roomAll.size + ' / ' + roomLocked);
+
+  // 사다리에 적힌 칭호가 실제 칭호와 같은지
+  const titles = care.stageTable().slice(1).map((t) => t.title);
+  ok('README 의 성장 사다리', doc.includes(titles.join(' → ')), titles.join(' → '));
+
+  // 사라진 창을 아직 안내하고 있지는 않은지
+  ok('README 에 없어진 설정 창 안내가 없다', !/설정 창에서/.test(doc));
+}
+
 console.log('# 왜 지금 못 하는가');
 {
   const c = care.blank(); care.hatch(c);
@@ -977,11 +1016,25 @@ console.log('# 왜 지금 못 하는가');
   ok('돌보기 창이 설정 값을 싣는다', /Object\.assign\(v, settingsPayload\(\)\)/.test(mainSrc));
   ok('돌보기 창이 탭 이동 신호를 받는다', /api\.onTab/.test(careSrc));
 
+  /* 알일 때 「꾸미기」 탭은 고를 것이 하나도 없어 통째로 빈 화면이었다.
+     탭을 눌렀는데 아무것도 없으면 고장으로 읽힌다 — 다섯 탭 모두 무언가는
+     말해야 한다. */
+  ok('알일 때도 꾸미기 탭이 비지 않는다',
+     /if \(c\.egg\) \{[\s\S]{0,200}알에서 깨어나면 털 색과 소품/.test(careSrc));
+
   /* ★탭을 기억하게 두면 메뉴 이름이 거짓말을 한다 — 마지막이 설정이면
      「돌보기…」를 눌러도 설정이 열려서 두 항목이 구분되지 않는다.
      여는 쪽이 어디로 갈지 정하고, 창은 기억하지 않는다. */
   ok('창이 마지막 탭을 기억하지 않는다', !/localStorage/.test(careSrc));
   ok('탭을 안 넘기면 돌보기로 연다', /const where = tab \|\| 'care';/.test(mainSrc));
+  /* 화면 구성이 바뀌는 순간은 셋이다. metrics-changed 만 듣고 있었더니
+     모니터를 '뽑았을' 때(display-removed) 펫이 사라진 좌표에 남았다. */
+  ['display-metrics-changed', 'display-removed', 'display-added'].forEach((ev) => {
+    ok(ev + ' 를 듣는다', mainSrc.includes(ev), ev);
+  });
+  ok('셋 다 같은 곳으로 이어진다', /screen\.on\(ev, keepOnScreen\)/.test(mainSrc));
+  ok('자고 일어날 때도 화면을 확인한다', /powerMonitor\.on\('resume', \(\) => setTimeout\(keepOnScreen/.test(mainSrc));
+
   ok('열 때 언제나 탭을 알려 준다',
      /careWin\.webContents\.send\('care-tab', where\)/.test(mainSrc));
   ['scale', 'gLogin', 'gSave', 'cEnabled', 'cLead', 'cBrief'].forEach((id) => {
@@ -1035,8 +1088,13 @@ console.log('# 이정표 표');
        got.map((p) => p.label).join(' · ') === m.prize,
        got.map((p) => p.label).join(' · ') + ' vs ' + m.prize);
     ok(m.title + ' 의 상품마다 있을 곳이 있다',
-       got.length > 0 && got.every((p) => /소품 · |집 꾸미기 · /.test(p.where)),
+       got.length > 0 && got.every((p) => /^꾸미기 · /.test(p.where)),
        JSON.stringify(got.map((p) => p.where)));
+    /* 화면이 안 쓰는 안내문은 틀린 채로 남는다 — 실제로 '펫을 오른쪽 클릭
+       → 소품' 이 소품이 옮겨 간 뒤에도 그대로 있었다. 쓰는 것만 만든다. */
+    ok(m.title + ' 의 상품에 안 쓰는 안내문이 없다',
+       got.every((p) => Object.keys(p).sort().join(',') === 'key,label,where'),
+       JSON.stringify(Object.keys(got[0] || {})));
   });
   const ids = M.LIST.map((m) => m.id);
   ok('id 가 겹치지 않는다', new Set(ids).size === ids.length);
