@@ -23,5 +23,15 @@ contextBridge.exposeInMainWorld('care', {
   setProp: (slot, value) => ipcRenderer.send('care-prop', slot, value),
   clearProps: () => ipcRenderer.send('care-props-clear'),
   setFur: (hex) => ipcRenderer.send('care-fur', hex),
-  setEyes: (v) => ipcRenderer.send('care-eyes', v)
+  setEyes: (v) => ipcRenderer.send('care-eyes', v),
+
+  /* 모카펫 설정 창을 없애고 이리로 합쳤다 — 이름이 같은 「설정」이 두 군데
+     있는데 나뉜 기준이 없었다(둘 다 앱 전체 설정이다). */
+  onTab: (fn) => ipcRenderer.on('care-tab', (_e, t) => fn(t)),
+  setPct: (pct) => ipcRenderer.send('set-pct', pct),
+  googleStatus:    ()           => ipcRenderer.invoke('google:status'),
+  googleSetClient: (id, secret) => ipcRenderer.invoke('google:set-client', id, secret),
+  googleSignIn:    ()           => ipcRenderer.invoke('google:signin'),
+  googleSignOut:   ()           => ipcRenderer.invoke('google:signout'),
+  calSet:          (patch)      => ipcRenderer.invoke('cal:set', patch)
 });

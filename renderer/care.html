@@ -99,6 +99,26 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
   border:1px solid var(--line);background:transparent;color:var(--muted)}
 #look .chip.on{border-color:var(--accent);color:var(--accent)}
 #look #bare{margin-top:8px}
+/* 「모카펫 설정」 창을 여기로 합쳤다. 자주 건드리는 것은 펴 두고, 한 번
+   하고 마는 구글 연동은 접어 둔다. */
+.prefs{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.prefs .slot{display:flex;align-items:center;gap:8px;margin-top:6px}
+.prefs .slot .lb{flex:0 0 66px;color:var(--muted);font-size:11.5px}
+.prefs input[type=range]{flex:1 1 auto;min-width:90px}
+.prefs .pcv{font-size:11.5px;color:var(--muted);min-width:38px;text-align:right}
+.prefs details{margin-top:10px}
+.prefs summary{cursor:pointer;font-size:12px;color:var(--muted);padding:3px 0}
+.prefs summary::marker{color:var(--line)}
+.prefs #gState{color:var(--accent)}
+.prefs #gState.bad{color:#C9492F}
+.prefs #gSetup{margin-top:6px}
+.prefs input[type=text],.prefs input[type=password],.prefs input[type=time]{
+  font:inherit;font-size:12px;padding:5px 8px;border-radius:8px;
+  border:1px solid var(--line);background:#fff;color:var(--text);width:100%;margin-top:5px}
+.prefs input[type=time]{width:auto}
+.prefs .hint{color:var(--muted);font-size:11px;line-height:1.5;margin:7px 0 0}
+.prefs #gAuth{margin-top:8px}
+.prefs .sub{margin-top:7px}
 /* 막힌 이유를 title 로만 달아 두었더니, 상태가 갱신되며 버튼이 다시
    그려질 때 마우스가 그대로면 hover 가 다시 잡히지 않아 한 번 보고 나면
    끝이었다. 눈에 보이는 줄로 적는다. */
@@ -332,6 +352,41 @@ button:disabled{pointer-events:none}
         <input type="checkbox" id="stretch">
         <span id="stretchLabel">오래 앉아 있으면 부르기</span>
       </div>
+
+      <div class="prefs" id="prefsBox">
+        <div class="slot"><span class="lb">펫 크기</span>
+          <input id="scale" type="range" min="10" max="200" step="1" value="100" aria-label="펫 크기">
+          <span class="pcv" id="scaleOut">100%</span>
+          <button class="link" id="reset" title="100%로 되돌리기">기본값</button>
+        </div>
+
+        <details id="gBox">
+          <summary>구글 캘린더 — <span id="gState">확인 중…</span></summary>
+          <div id="gSetup">
+            <input id="gId" type="text" placeholder="클라이언트 ID" autocomplete="off" spellcheck="false">
+            <input id="gSecret" type="password" placeholder="클라이언트 보안 비밀번호" autocomplete="off">
+            <button class="link" id="gSave">저장</button>
+            <p class="hint">구글 클라우드 콘솔에서 <b>데스크톱 앱</b> 유형으로 만든 값입니다.
+              이 값과 로그인 정보는 이 컴퓨터에만 암호화해 저장되고 어디로도 전송되지 않습니다.</p>
+          </div>
+          <div id="gUseBundled" style="display:none">
+            <span>이 앱에는 클라이언트가 내장되어 있습니다.</span>
+            <button class="link" id="gBundled">내장 값 사용</button>
+          </div>
+          <div id="gAuth">
+            <button class="link" id="gLogin">구글로 로그인</button>
+            <button class="link" id="gLogout" style="display:none">연결 해제</button>
+          </div>
+          <div id="gOpts" style="display:none">
+            <div class="sub"><input type="checkbox" id="cEnabled"><span>일정 알림 켜기</span></div>
+            <div class="sub"><span>시작</span>
+              <input type="range" id="cLead" min="1" max="60" step="1">
+              <span class="pcv" id="cLeadOut">10분</span><span>전에 알림</span></div>
+            <div class="sub"><input type="checkbox" id="cBrief"><span>아침에 오늘 일정 브리핑</span>
+              <input type="time" id="cBriefAt"></div>
+          </div>
+        </details>
+      </div>
       <div class="tricks" id="tricks"></div>
       <p class="note" id="hint"></p>
       <p class="note" id="metLine"><span id="met"></span>
@@ -385,7 +440,8 @@ button:disabled{pointer-events:none}
     ['.card.grow', 'grow'], ['#missions', 'grow'], ['#log', 'grow'],
     ['#metLine', 'family'], ['#roster', 'family'], ['#family', 'family'],
     ['#tree', 'family'],
-    ['#look', 'room'], ['#room', 'room'], ['#badges', 'room']
+    ['#look', 'room'], ['#room', 'room'], ['#badges', 'room'],
+    ['#prefsBox', 'prefs']
   ];
 
   var tabKey = 'moka.care.tab';
@@ -481,6 +537,157 @@ button:disabled{pointer-events:none}
   }
   document.addEventListener('mousemove', moveTip);
   document.addEventListener('mouseleave', function(){ tip.classList.remove('on'); tipFor = null; });
+
+  /* ---------- 설정 (옛 「모카펫 설정」 창) ----------
+   * 창을 없애고 이리로 옮겼다. 아래 코드는 settings.html 에서 그대로
+   * 가져온 것이다 — 다시 쓰면 로그인 흐름 같은 데서 미묘하게 어긋난다. */
+  var slider = document.getElementById('scale');
+  var out    = document.getElementById('scaleOut');
+  var reset  = document.getElementById('reset');
+
+  function paint(){
+    var min = +slider.min, max = +slider.max, v = +slider.value;
+    out.textContent = v + '%';
+    slider.style.setProperty('--p', (v - min) / (max - min));
+  }
+
+  function push(){
+    paint();
+    api.setPct(+slider.value);
+  }
+
+  api.onState(function(cfg){
+    if(!cfg) return;
+    if(cfg.min) slider.min = cfg.min;
+    if(cfg.max) slider.max = cfg.max;
+    slider.value = cfg.pct || 100;
+    paint();
+  });
+
+  // live while dragging, so the pet resizes under the cursor
+  slider.addEventListener('input', push);
+
+  // Shift+arrow for a coarser step; the browser only gives us 1 by default
+  slider.addEventListener('keydown', function(e){
+    if(!e.shiftKey) return;
+    var d = (e.key === 'ArrowRight' || e.key === 'ArrowUp') ? 10
+          : (e.key === 'ArrowLeft'  || e.key === 'ArrowDown') ? -10 : 0;
+    if(!d) return;
+    e.preventDefault();
+    slider.value = Math.max(+slider.min, Math.min(+slider.max, +slider.value + d));
+    push();
+  });
+
+  reset.addEventListener('click', function(){
+    slider.value = 100;
+    push();
+  });
+
+  /* ---------- google calendar ---------- */
+  var gState  = document.getElementById('gState');
+  var gSetup  = document.getElementById('gSetup');
+  var gOpts   = document.getElementById('gOpts');
+  var gId     = document.getElementById('gId');
+  var gSecret = document.getElementById('gSecret');
+  var gSave   = document.getElementById('gSave');
+  var gLogin  = document.getElementById('gLogin');
+  var gLogout = document.getElementById('gLogout');
+
+  var cEnabled = document.getElementById('cEnabled');
+  var cLead    = document.getElementById('cLead');
+  var cLeadOut = document.getElementById('cLeadOut');
+  var cBrief   = document.getElementById('cBrief');
+  var cBriefAt = document.getElementById('cBriefAt');
+
+  function paintGoogle(cfg){
+    if(!cfg) return;
+    if(cfg.version) document.getElementById('ver').textContent = 'v' + cfg.version;
+    if(!cfg.google) return;
+    var g = cfg.google, c = cfg.cal || {};
+
+    if(!g.canStore){
+      gState.textContent = '이 시스템에서는 자격증명을 안전하게 저장할 수 없습니다';
+      gState.className = 'state bad';
+      gSetup.style.display = 'none';
+      document.getElementById('gAuth').style.display = 'none';
+      return;
+    }
+
+    // a bundled client means the teammate never needs to see these fields
+    gSetup.style.display = (g.bundled || (g.hasClient && g.signedIn)) ? 'none' : '';
+    // an override is in play even though the build ships a client — offer a way back
+    document.getElementById('gUseBundled').style.display =
+      (g.hasBundled && !g.bundled && !g.signedIn) ? '' : 'none';
+    gLogin.style.display  = g.signedIn ? 'none' : '';
+    gLogout.style.display = g.signedIn ? '' : 'none';
+    gLogin.disabled = !g.hasClient;
+    gOpts.style.display = g.signedIn ? '' : 'none';
+
+    if(g.signedIn){
+      gState.textContent = g.email ? ('연결됨 · ' + g.email) : '연결됨';
+      gState.className = 'state ok';
+    } else if(g.hasClient){
+      gState.textContent = '로그인하면 연결됩니다';
+      gState.className = 'state';
+    } else {
+      gState.textContent = '클라이언트 값을 입력해 주세요';
+      gState.className = 'state';
+    }
+
+    cEnabled.checked = c.enabled !== false;
+    cLead.value = c.leadMinutes || 10;
+    cLeadOut.textContent = cLead.value + '분';
+    cBrief.checked = !!c.briefEnabled;
+    cBriefAt.value = c.briefAt || '09:00';
+  }
+
+  function busy(el, on, label){
+    el.disabled = on;
+    if(on){ el.dataset.label = el.textContent; el.textContent = label; }
+    else if(el.dataset.label){ el.textContent = el.dataset.label; }
+  }
+
+  gSave.addEventListener('click', function(){
+    api.googleSetClient(gId.value, gSecret.value).then(function(cfg){
+      gSecret.value = '';
+      paintGoogle(cfg);
+    });
+  });
+
+  gLogin.addEventListener('click', function(){
+    busy(gLogin, true, '브라우저에서 진행 중…');
+    gState.textContent = '브라우저에서 구글 로그인을 마쳐 주세요';
+    gState.className = 'state';
+    api.googleSignIn().then(function(cfg){
+      busy(gLogin, false);
+      paintGoogle(cfg);
+    }).catch(function(err){
+      busy(gLogin, false);
+      gState.textContent = (err && err.message ? String(err.message).replace(/^Error: /, '') : '로그인하지 못했습니다');
+      gState.className = 'state bad';
+    });
+  });
+
+  document.getElementById('gBundled').addEventListener('click', function(){
+    api.googleSetClient('', '').then(paintGoogle);
+  });
+
+  gLogout.addEventListener('click', function(){
+    api.googleSignOut().then(paintGoogle);
+  });
+
+  cEnabled.addEventListener('change', function(){ api.calSet({ enabled: cEnabled.checked }); });
+  cBrief.addEventListener('change', function(){ api.calSet({ briefEnabled: cBrief.checked }); });
+  cBriefAt.addEventListener('change', function(){ api.calSet({ briefAt: cBriefAt.value }); });
+  cLead.addEventListener('input', function(){ cLeadOut.textContent = cLead.value + '분'; });
+  cLead.addEventListener('change', function(){ api.calSet({ leadMinutes: +cLead.value }); });
+
+  api.onState(paintGoogle);
+  if(api.googleStatus) api.googleStatus().then(paintGoogle);
+
+
+  // ⌘, 로 열면 설정 탭으로 바로 간다
+  if (api.onTab) api.onTab(function(t){ showTab(t, true); });
 
   tagTabs();
   buildTabs();

@@ -960,6 +960,26 @@ console.log('# 왜 지금 못 하는가');
      String(care.blocked(jaded).show));
 
   // 소품과 집 꾸미기는 같은 모양이어야 한다
+  /* 「모카펫 설정」 창을 돌보기 창의 설정 탭으로 합쳤다. 창이 사라졌는데
+     그리로 보내던 길이 남아 있으면 눌러도 아무 일이 없다 — 실제로
+     openSettings 를 부르던 곳이 세 군데였다. */
+  const fs3 = require('fs'), path3 = require('path');
+  ok('설정 창은 사라졌다',
+     !/settingsWin|function openSettings|settings-ready/.test(mainSrc));
+  ok('설정 화면 파일도 없다',
+     !fs3.existsSync(path3.join(__dirname, '..', 'renderer', 'settings.html')) &&
+     !fs3.existsSync(path3.join(__dirname, '..', 'settings-preload.js')));
+  ok('빌드 목록에도 남지 않았다',
+     !/settings-preload/.test(fs3.readFileSync(path3.join(__dirname, '..', 'package.json'), 'utf8')));
+  ok('설정으로 보내던 길은 돌보기 설정 탭으로 간다',
+     (mainSrc.match(/openCare\('prefs'\)/g) || []).length >= 3,
+     String((mainSrc.match(/openCare\('prefs'\)/g) || []).length));
+  ok('돌보기 창이 설정 값을 싣는다', /Object\.assign\(v, settingsPayload\(\)\)/.test(mainSrc));
+  ok('돌보기 창이 탭 이동 신호를 받는다', /api\.onTab/.test(careSrc));
+  ['scale', 'gLogin', 'gSave', 'cEnabled', 'cLead', 'cBrief'].forEach((id) => {
+    ok('설정 탭에 ' + id + ' 가 있다', new RegExp('id="' + id + '"').test(careSrc));
+  });
+
   ok('소품 드롭다운도 집 꾸미기와 같은 규칙을 받는다',
      /#room \.slot select, #look \.slot select\{/.test(careSrc));
 

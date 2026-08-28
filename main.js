@@ -335,7 +335,6 @@ function payload() {
  * ------------------------------------------------------------------ */
 
 let win = null;
-let settingsWin = null;
 let bubbleWin = null;
 let tray = null;
 let gazeTimer = null;
@@ -928,7 +927,7 @@ function buildMenu() {
     { type: 'separator' }
   ].concat(rosterMenu(), [
     { label: '돌보기…', accelerator: 'CommandOrControl+K', click: () => openCare() },
-    { label: '설정…', accelerator: 'CommandOrControl+,', click: () => openSettings() }
+    { label: '설정…', accelerator: 'CommandOrControl+,', click: () => openCare('prefs') }
   ]) : null;
   if (eggOnly) return Menu.buildFromTemplate(eggOnly.concat(tailMenu('알')));
 
@@ -959,7 +958,7 @@ function buildMenu() {
        메뉴를 실제로 만들어 보고 첫 예외에서 멈춘다(1.24.0 사고 이후). */
     { type: 'separator' },
     { label: '돌보기…', accelerator: 'CommandOrControl+K', click: () => openCare() },
-    { label: '설정…', accelerator: 'CommandOrControl+,', click: () => openSettings() },
+    { label: '설정…', accelerator: 'CommandOrControl+,', click: () => openCare('prefs') },
   ], tailMenu(pet.name)));
 }
 
@@ -1060,53 +1059,10 @@ function settingsPayload() {
   };
 }
 
-/* The dock icon is hidden, so macOS treats this as an accessory app and
-   will not hand it keyboard focus on its own — without this the client
-   ID field cannot be typed into. */
-function focusSettings() {
-  if (!settingsWin || settingsWin.isDestroyed()) return;
-  if (IS_MAC) app.focus({ steal: true });
-  settingsWin.show();
-  settingsWin.focus();
-}
-
-function openSettings() {
-  if (settingsWin && !settingsWin.isDestroyed()) {
-    focusSettings();
-    return;
-  }
-
-  settingsWin = new BrowserWindow({
-    width: 700,
-    height: 500,
-    resizable: true,
-    minWidth: 520,
-    minHeight: 380,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    title: '모카펫 설정',
-    frame: !IS_MAC,
-    titleBarStyle: IS_MAC ? 'hiddenInset' : 'default',
-    trafficLightPosition: IS_MAC ? { x: 14, y: 12 } : undefined,
-    show: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'settings-preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  });
-
-  settingsWin.setMenuBarVisibility(false);
-  settingsWin.loadFile(path.join(__dirname, 'renderer', 'settings.html'));
-  settingsWin.once('ready-to-show', () => focusSettings());
-  settingsWin.on('closed', () => { settingsWin = null; });
-}
-
-ipcMain.on('settings-ready', (e) => {
-  const w = BrowserWindow.fromWebContents(e.sender);
-  if (w && !w.isDestroyed()) w.webContents.send('settings-config', settingsPayload());
-});
+/* 「모카펫 설정」 창은 없앴다. 이름이 같은 설정이 두 군데 있었는데 나뉜
+   기준이 없었다 — 말 걸기·밤에는 재우기는 돌보기 창에, 크기·구글·캘린더는
+   설정 창에 있었지만 둘 다 앱 전체 설정이다. 돌보기 창의 「설정」 탭으로
+   합쳤다. settingsPayload() 는 그대로 쓰인다 — carePayload 가 싣는다. */
 
 function setHome(on) {
   cfg.home = { enabled: !!on };
@@ -1590,18 +1546,16 @@ function startCalendar() {
       showBubble({
         kind: 'auth',
         head: '구글 연결이 풀렸어요',
-        lines: ['설정에서 다시 로그인해 주세요'],
-        click: () => openSettings()
+        lines: ['돌보기 창의 설정에서 다시 로그인해 주세요'],
+        click: () => openCare('prefs')
       });
     }
   });
 }
 
-function pushSettings() {
-  if (settingsWin && !settingsWin.isDestroyed()) {
-    settingsWin.webContents.send('settings-config', settingsPayload());
-  }
-}
+/* 설정 창은 없어졌고 돌보기 창이 그 자리를 맡는다. 부르는 곳이 여럿이라
+   이름은 그대로 두고 속만 바꾼다. */
+function pushSettings() { pushCare(); }
 
 ipcMain.handle('google:status', () => settingsPayload());
 
@@ -1996,6 +1950,8 @@ function carePayload() {
   v.zoom = cfg.zoom.enabled;
   v.zoomFactor = Math.round(targetZoom() * 100) / 100;
   v.awayMin = cfg.away.minutes;
+  // 설정 창을 합쳤다 — 크기·구글·캘린더도 이 창이 그린다
+  Object.assign(v, settingsPayload());
   v.stretch = cfg.stretch.enabled;
   v.stretchMin = cfg.stretch.minutes;
   v.nightFrom = cfg.night.from;
@@ -2500,10 +2456,16 @@ ipcMain.on('care-ready', (e) => {
   if (w && !w.isDestroyed()) w.webContents.send('care-state', carePayload());
 });
 
-function openCare() {
+/* tab: 'prefs' 처럼 넘기면 그 자리로 연다. 설정 창을 합치면서 ⌘, 가
+   돌보기 창의 설정 탭을 열어야 해서 생겼다. */
+function openCare(tab) {
+  const jump = () => {
+    if (tab && careWin && !careWin.isDestroyed()) careWin.webContents.send('care-tab', tab);
+  };
   if (careWin && !careWin.isDestroyed()) {
     if (IS_MAC) app.focus({ steal: true });
     careWin.show(); careWin.focus();
+    jump();
     return;
   }
   careWin = new BrowserWindow({
@@ -2523,6 +2485,7 @@ function openCare() {
   careWin.once('ready-to-show', () => {
     if (IS_MAC) app.focus({ steal: true });
     careWin.show();
+    jump();
   });
   careWin.on('closed', () => { careWin = null; });
 }
