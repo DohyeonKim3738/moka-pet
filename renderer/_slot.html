@@ -1,0 +1,35 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>슬롯 점검</title>
+<link rel="stylesheet" href="sprite.css">
+<style>
+body{margin:0;background:#26262b;font:12px -apple-system,"Apple SD Gothic Neo",sans-serif;color:#bbb;padding:10px}
+h2{color:#ddd;font-size:12px;margin:12px 4px 4px}
+.row{display:grid;gap:4px}
+.cell{background:#1b1b1f;border-radius:8px;padding:4px}
+.cell svg{display:block;width:100%;height:auto}
+.n{text-align:center;font-size:10.5px;margin-top:2px;color:#999}
+</style></head><body><div id="all"></div>
+<script>
+['pixel.js','gear.js','tint.js','species.js'].forEach(function(f){
+  document.write('<script src="'+f+'?'+Date.now()+Math.random()+'"><\/script>');
+});
+</script>
+<script>
+var q=new URLSearchParams(location.search);
+var KEY=q.get('key')||'crab';
+var SLOT=q.get('slot')||'head';
+var STAGES=(q.get('stages')||'baby,child,teen,adult,elder,legend').split(',');
+var all=document.getElementById('all');
+Object.keys(window.GEAR.items[SLOT]).forEach(function(item, idx){
+  var h='<h2>'+window.GEAR.items[SLOT][item].label+' ('+item+')</h2>'+
+        '<div class="row" style="grid-template-columns:repeat('+STAGES.length+',1fr)">';
+  STAGES.forEach(function(st){
+    var sp=window.SPECIES.at(KEY, st, 'normal');
+    h+='<div class="cell"><svg viewBox="-30 -60 300 330" style="'+window.TINT.css({fur:sp.fur,belly:sp.belly},sp)+'">'+sp.markup()+'</svg><div class="n">'+st+'</div></div>';
+  });
+  all.insertAdjacentHTML('beforeend', h+'</div>');
+});
+document.querySelectorAll('.row').forEach(function(row, i){
+  var item=Object.keys(window.GEAR.items[SLOT])[i];
+  row.querySelectorAll('[data-gear="'+item+'"]').forEach(function(e){ e.style.display=''; });
+});
+</script></body></html>

@@ -86,17 +86,17 @@
   /* ---------- head ---------- */
   var HEAD = {
     yuzu: {
-      label: '유자', at: [20, -2],
+      label: '유자', at: [20, -2], fromHead: -6,
       art: ['...SS...', '..GSSG..', '.GGSSGG.', '.OYYYYO.',
             'OYyyYYYO', 'OYyYYYYO', 'OYYYYYYO', '.OYYYYO.', '..OOOO..']
     },
     leaf: {
-      label: '나뭇잎', at: [20, -2],
+      label: '나뭇잎', at: [20, -2], fromHead: -6,
       art: ['.....GG.', '...GGGG.', '..GGGGG.', '.GGgGGG.',
             '.GGGGG..', 'SGGGG...', 'SG......', 'S.......']
     },
     star: {
-      label: '별', at: [20, -2],
+      label: '별', at: [20, -2], fromHead: -6,
       art: ['...YY...', '...YY...', 'YYYYYYYY', '.YYYYYY.',
             '..YYYY..', '.YY..YY.', '.Y....Y.', '........']
     },
@@ -107,7 +107,7 @@
     cap: {
       /* Nine rows at the same anchor the yuzu uses: the lower rows have to
          sink into the skull or the hat floats above the head. */
-      label: '졸업 모자', at: [20, -2], lock: 'adult',
+      label: '졸업 모자', at: [20, -2], fromHead: -6, lock: 'adult',
       art: ['........',
             '........',
             '.......Y',      // tassel button
@@ -121,7 +121,7 @@
     beret: {
       /* A soft cap pulled down over the skull, with a brim on one side.
          Flat colour would read as a helmet, so the crown is two tones. */
-      label: '탐험 모자', at: [20, -1], lock: 'walk100',
+      label: '탐험 모자', at: [20, -1], fromHead: -5, lock: 'walk100',
       art: ['........',
             '..GGGG..',
             '.GGGGGG.',
@@ -135,7 +135,7 @@
     ribbon: {
       /* Two loops and a knot. The knot has to be dark or the whole thing
          flattens into one pink blob. */
-      label: '리본', at: [21, 0], lock: 'three',
+      label: '리본', at: [21, 0], fromHead: -4, lock: 'three',
       art: ['........',
             '........',
             '.PP..PP.',
@@ -187,7 +187,7 @@
       })()
     },
     crown: {
-      label: '황금 왕관', at: [20, -3], lock: 'all9',
+      label: '황금 왕관', at: [20, -3], fromHead: -7, lock: 'all9',
       art: ['.Y....Y.',      // points
             '.Y.YY.Y.',
             '.YYYYYY.',

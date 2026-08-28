@@ -489,7 +489,11 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
     propAt: [20, -6], tearAt: [17, 20],
     // the shell sits where a torso normally would, and the eyes are on
     // stalks nine dots higher than every other species
-    gearOffset: { eyes: [0, -9], head: [0, -4], body: [0, -2], hand: [6, -6] },
+    /* 게는 골격이 다르다 — 머리가 y14 에서 시작하고(다른 종은 y4) 집게가
+       팔 자리에 있다. 머리 소품은 이제 fromHead 로 머리를 따라가므로 여기의
+       head 값은 x 만 쓰인다. hand 는 -6 으로는 모자라 집게에서 떨어져 떠
+       있었다(집게 y18..25, 물건 y25..31) — 집게 안으로 들어오게 -14. */
+    gearOffset: { eyes: [0, -9], head: [0, -4], body: [0, -2], hand: [6, -14] },
     parts: {
       body: { x: 15, y: 22, rows: P.stamp(P.shaped([10, 10, 10, 10, 14, 16, 18, 18, 18, 16, 12], { top: 1, bottom: 2, right: 2 }), patch([8, 12, 12, 10], 'B', 'b'), 3, 6) },
       head: { x: 10, y: 14, rows: crabShell },

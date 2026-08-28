@@ -1303,6 +1303,49 @@ console.log('# 목에 거는 소품이 머리에 가려지지 않는가');
     });
   });
   ok('어른이 입은 자리는 예전과 같다', moved.length === 0, moved.slice(0, 4).join(', '));
+
+  /* ★머리 소품이 게에서만 허공에 떠 있었다. 게는 머리가 y14 에서 시작하는데
+     (다른 여덟 종은 y4) 소품 자리는 y4 기준으로 적혀 있었고, 게의 보정값은
+     -4 라 오히려 더 위로 올라갔다 — 열네 칸 어긋난 채였다.
+     이제 머리 소품도 머리 윗줄을 따라간다. */
+  const floaty = [];
+  window.SPECIES.list.forEach((spx) => STAGES.forEach((st) => {
+    const sp = window.SPECIES.at(spx.key, st, 'normal');
+    const m = sp.markup();
+    const headTop = sp.parts.head.y;
+    Object.keys(window.GEAR.items.head).forEach((k) => {
+      if (k === 'halo') return;                    // 후광은 머리를 감싼다 — 얹는 것이 아니다
+      const rows = rowsOf(m, k);
+      if (!rows) { floaty.push(spx.key + '/' + k + '/' + st + ' 안 그려짐'); return; }
+      const bottom = Math.max(...rows);
+      // 아래끝이 머리 위쪽 근처에 있어야 '얹은 것'으로 보인다
+      if (bottom < headTop - 4 || bottom > headTop + 8) {
+        floaty.push(spx.key + '/' + k + '/' + st + ' 아래끝 y' + bottom + ' vs 머리위 y' + headTop);
+      }
+    });
+  }));
+  ok('머리 소품이 어느 종에서도 허공에 뜨지 않는다', floaty.length === 0,
+     floaty.slice(0, 4).join(', '));
+
+  /* 손에 드는 것은 팔(게는 집게)과 겹쳐야 쥔 것으로 보인다. 게는 집게가
+     y18..25 인데 물건이 y25..31 에 있어 떨어져 떠 있었다. */
+  const loose = [];
+  window.SPECIES.list.forEach((spx) => STAGES.forEach((st) => {
+    const sp = window.SPECIES.at(spx.key, st, 'normal');
+    const m = sp.markup();
+    const arm = sp.parts.armR;
+    const a0 = arm.y, a1 = arm.y + arm.rows.length - 1;
+    Object.keys(window.GEAR.items.hand).forEach((k) => {
+      const rows = rowsOf(m, k);
+      if (!rows) { loose.push(spx.key + '/' + k + '/' + st + ' 안 그려짐'); return; }
+      const lo = Math.max(Math.min(...rows), a0), hi = Math.min(Math.max(...rows), a1);
+      if (hi - lo < 1) {
+        loose.push(spx.key + '/' + k + '/' + st + ' 팔 y' + a0 + '..' + a1 +
+                   ' 물건 y' + Math.min(...rows) + '..' + Math.max(...rows));
+      }
+    });
+  }));
+  ok('손에 든 것이 어느 종에서도 팔에 닿는다', loose.length === 0, loose.slice(0, 4).join(', '));
 }
 
 console.log('# 뒷모습');
