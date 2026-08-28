@@ -2990,7 +2990,15 @@ function smokeCheck() {
     ['펫 우클릭 메뉴', () => buildMenu()],
     /* 곁의 아이 쪽도 메뉴와 payload 를 만들어 본다. 1.24.0 때 우클릭
        메뉴가 터진 채로 나간 적이 있어서 이 검사가 생겼다. */
-    ['곁의 아이 payload', () => buddyKeys().map((k) => buddyPayloadFor(k))],
+    /* 곁의 아이도 소품을 걸친다 — 창은 다르지만 그림은 같은 index.html 이고
+       props 를 보고 켠다. payload 에서 pet 이 빠지면 곁의 아이만 맨몸이 된다. */
+    ['곁의 아이 payload', () => {
+      const list = buddyKeys().map((k) => buddyPayloadFor(k));
+      list.forEach((b) => {
+        if (b && (!b.pet || !b.pet.props)) throw new Error('곁의 아이에게 소품이 안 간다');
+      });
+      return list;
+    }],
     ['곁의 아이 메뉴', () => buddyKeys().map((k) => Menu.buildFromTemplate([
       { label: cfg.pets[k].name + ' · 곁에 있는 아이', enabled: false },
       { type: 'separator' },
