@@ -3,6 +3,7 @@
  * 앱을 띄우지 않고 키우기 규칙만 검증한다. 화면 없이 확인할 수 있는 것은
  * 전부 여기서 걸러내고, 실제 앱 검증은 눈에 보이는 것에만 쓴다. */
 const care = require('../care.js');
+const chatter = require('../chatter.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -221,9 +222,100 @@ console.log('# 성격');
   for (let i = 0; i < 20; i++) care.actPat(baby);
   ok('아기는 아직 성격이 없다', care.personality(baby) === null);
 
+  /* 쓰다듬기와 놀기를 나란히 하면 이제 '평범'이 아니라 **짝 이름**이 붙는다.
+     예전엔 둘 다 높아도 평범이었는데, 그러면 "쓰다듬기만 누른 사람"과
+     "쓰다듬고 놀아 준 사람"이 똑같이 취급됐다. */
   const mixed = hatched(); mixed.age = 5;
   for (let i = 0; i < 10; i++) { care.actPat(mixed); mixed.fun = 30; mixed.energy = 90; care.actPlay(mixed); }
-  ok('고루 키우면 평범', care.personality(mixed) === '평범', JSON.stringify(mixed.traits));
+  ok('두 가지를 나란히 하면 짝 이름이 붙는다',
+     care.personality(mixed) === '개구쟁이', JSON.stringify(mixed.traits));
+
+  /* ---------- 성격이 스물한 가지가 되었다 ---------- */
+  {
+    const KEYS = ['play', 'love', 'food', 'rest', 'tidy', 'smart'];
+    const mk = (t) => {
+      const c = hatched(); c.age = 5;
+      KEYS.forEach((k) => { c.traits[k] = 0; });
+      Object.keys(t).forEach((k) => { c.traits[k] = t[k]; });
+      return c;
+    };
+
+    ok('갈래가 여섯이다', Object.keys(hatched().traits).length === 6,
+       Object.keys(hatched().traits).join(','));
+
+    // 여섯 단독 + 열다섯 짝 = 스물한 가지. 이름이 겹치면 두 가지가 한
+    // 가지로 보이므로 가짓수만 세는 걸로는 모자라다
+    const names = [];
+    KEYS.forEach((k) => names.push(care.personality(mk({ [k]: 30 }))));
+    for (let i = 0; i < KEYS.length; i++)
+      for (let j = i + 1; j < KEYS.length; j++)
+        names.push(care.personality(mk({ [KEYS[i]]: 20, [KEYS[j]]: 18 })));
+    ok('성격이 스물한 가지다', names.length === 21, String(names.length));
+    ok('이름이 겹치지 않는다', new Set(names).size === 21,
+       String(new Set(names).size));
+    ok('빈 이름이 없다', names.every((n) => n && n !== '평범'),
+       names.filter((n) => !n || n === '평범').join(','));
+
+    // 짝은 순서와 무관해야 한다 — 'play+love' 와 'love+play' 가 다른
+    // 성격이 되면 같은 아이가 볼 때마다 이름이 바뀐다
+    ok('짝 이름은 순서를 타지 않는다',
+       care.personality(mk({ play: 20, love: 18 })) ===
+       care.personality(mk({ love: 20, play: 18 })));
+
+    // 성격은 이름표가 아니라 사는 방식이어야 한다
+    ok('깔끔은 덜 어지른다', care.mods(mk({ tidy: 30 })).poop < 1);
+    ok('똑똑은 빨리 배운다', care.mods(mk({ smart: 30 })).learn > 1);
+
+    /* 짝일 때는 두 갈래의 보정이 **합쳐져야** 한다. 표를 짝마다 손으로
+       적었다면 열다섯 벌이 되고, 한 축을 고칠 때마다 다섯 곳을 놓친다. */
+    const both = care.mods(mk({ play: 20, food: 18 }));
+    const onlyPlay = care.mods(mk({ play: 30 }));
+    const onlyFood = care.mods(mk({ food: 30 }));
+    ok('짝이면 두 갈래가 다 적용된다',
+       Math.abs(both.fun - onlyPlay.fun) < 1e-9 &&
+       Math.abs(both.hunger - onlyFood.hunger) < 1e-9,
+       [both.fun, both.hunger].join(' / '));
+
+    /* 새 갈래는 **쌓일 길**이 있어야 한다. 이름만 늘리고 올릴 방법이 없으면
+       영영 안 나오는 성격이 된다. */
+    const cleaner = hatched(); cleaner.age = 5;
+    cleaner.poops = [{ id: 'a', x: 2 }, { id: 'b', x: 10 }];
+    care.actClean(cleaner);
+    ok('치우면 깔끔이 쌓인다', cleaner.traits.tidy > 0);
+
+    const student = hatched(); student.age = 5;
+    student.energy = 90; student.fun = 90;
+    care.actTrain(student);
+    ok('가르치면 똑똑이 쌓인다', student.traits.smart > 0);
+
+    // 저장해 둔 옛 아이는 없는 갈래를 0 으로 채워 받는다
+    const old = care.normalize({ traits: { play: 5, love: 5, food: 5, rest: 5 } });
+    ok('예전 저장본에도 새 갈래가 생긴다',
+       old.traits.tidy === 0 && old.traits.smart === 0);
+
+    /* 성격을 늘리고 대사를 안 채우면 열일곱 가지가 조용히 기본 대사로
+       떨어져서, 늘린 티가 하나도 안 난다. 이름이 한 글자만 어긋나도
+       그 성격은 영영 말이 없으므로 두 표를 맞대어 본다. */
+    const spoken = chatter.natures();
+    const all = care.personalityNames();
+    const silent = all.filter((n) => spoken.indexOf(n) < 0);
+    ok('성격마다 할 말이 있다', silent.length === 0, silent.join(', '));
+    const orphan = spoken.filter((n) => all.indexOf(n) < 0);
+    ok('대사표에 없는 성격이 없다', orphan.length === 0, orphan.join(', '));
+    ok('대사가 성격마다 다르다',
+       new Set(all.map((n) => JSON.stringify(chatter.natures().indexOf(n)))).size === all.length);
+
+    // 설명이 스스로 모순되면 안 된다 — 느긋(느리게)과 똑똑(빠르게)이
+    // 겹친 아이한테 두 말이 나란히 붙었던 적이 있다
+    const note = care.natureNote(mk({ rest: 20, smart: 18 }));
+    ok('설명이 서로 어긋나지 않는다',
+       !(note.indexOf('금방 배워요') >= 0 && note.indexOf('느려요') >= 0), note);
+  }
+
+  // 셋 이상이 엉키면 그때가 평범이다
+  const even = hatched(); even.age = 5;
+  even.traits.play = 12; even.traits.love = 11; even.traits.food = 10;
+  ok('셋이 엉키면 평범', care.personality(even) === '평범');
 
   const fresh = hatched(); fresh.age = 5;
   ok('아무것도 안 했으면 평범', care.personality(fresh) === '평범');

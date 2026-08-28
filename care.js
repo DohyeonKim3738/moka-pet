@@ -119,11 +119,66 @@ const WEIGHT = {
 /* Traits accumulate from what you actually do, and decay a little every
    day so a pet can change if you change. */
 const TRAIT_DECAY = 0.97;
-const TRAIT_LEAD = 1.25;   // how far ahead a trait must be to name the pet
+/* 1등이 2등을 이만큼 앞서면 그 하나가 성격이다. 이 값을 짝 판정과 같은
+   1.25 로 두었더니 짝이 거의 안 나왔다 — 1등이 2등보다 조금이라도 앞서면
+   바로 단독이 되어 버린다. 단독 기준을 높여 그 사이를 짝에게 준다. */
+const TRAIT_SOLO = 1.4;
+const TRAIT_LEAD = 1.25;   // 앞선 둘이 3등을 이만큼 앞서야 짝이 된다
+const TRAIT_MIN = 8;       // 그 아래면 아직 판단할 게 없다 — 평범
 
+/* ---------- 성격 ----------
+   여섯 갈래로 쌓이고, 이름은 그 중 앞선 것에서 나온다. 한 갈래만 뚜렷하면
+   그 갈래의 이름을, 두 갈래가 나란히 앞서면 **둘을 합친 이름**을 준다.
+   축을 여섯으로 늘린 것보다 짝 이름이 가짓수를 크게 늘린다 — 여섯에
+   열다섯 짝을 더해 스물한 가지, 어느 쪽도 뚜렷하지 않으면 평범이다.
+
+   짝 이름을 쓰는 이유는 따로 있다. 축만 늘리면 "쓰다듬기만 누르는 사람"과
+   "쓰다듬고 치우는 사람"이 똑같이 다정이 된다. 키운 방식이 다른데 이름이
+   같으면 성격이 아니라 딱지다. */
 const PERSONALITY = {
-  play: '활발', love: '다정', food: '먹보', rest: '느긋'
+  play: '활발', love: '다정', food: '먹보',
+  rest: '느긋', tidy: '깔끔', smart: '똑똑'
 };
+
+const TRAIT_KEYS = Object.keys(PERSONALITY);
+
+/* 두 갈래가 나란히 앞설 때의 이름. 키는 항상 TRAIT_KEYS 순서로 잇는다 —
+   'play+love' 와 'love+play' 가 다른 성격이 되면 안 된다. */
+const PERSONALITY_PAIR = {
+  'play+love':  '개구쟁이',
+  'play+food':  '튼튼이',
+  'play+rest':  '변덕쟁이',
+  'play+tidy':  '부지런이',
+  'play+smart': '재간둥이',
+  'love+food':  '응석받이',
+  'love+rest':  '포근이',
+  'love+tidy':  '살림꾼',
+  'love+smart': '눈치백단',
+  'food+rest':  '잠꾸러기',
+  'food+tidy':  '미식가',
+  'food+smart': '꾀돌이',
+  'rest+tidy':  '새침이',
+  'rest+smart': '사색가',
+  'tidy+smart': '모범생'
+};
+
+function blankTraits() {
+  const t = {};
+  TRAIT_KEYS.forEach((k) => { t[k] = 0; });
+  return t;
+}
+
+/* 있을 수 있는 성격 이름 전부. 대사표(chatter.js)가 이 목록과 어긋나면
+   그 성격은 영영 말이 없다 — 검사가 두 표를 맞대어 보는 데 쓴다. */
+function personalityNames() {
+  return TRAIT_KEYS.map((k) => PERSONALITY[k])
+                   .concat(Object.keys(PERSONALITY_PAIR).map((k) => PERSONALITY_PAIR[k]));
+}
+
+function pairKey(a, b) {
+  const i = TRAIT_KEYS.indexOf(a), j = TRAIT_KEYS.indexOf(b);
+  return i < j ? a + '+' + b : b + '+' + a;
+}
 
 /* Ten, in the order they are taught. Each one has to be a motion you can
    tell apart across a desk — a name with no move behind it is not a
@@ -222,7 +277,7 @@ function blank() {
     hunger: 100, fun: 100, energy: 100,
     exp: 0, age: 1,
     weight: WEIGHT.start,
-    traits: { play: 0, love: 0, food: 0, rest: 0 },
+    traits: blankTraits(),
     tricks: [],
     traitDay: dayKey(now),
     bornAt: 0,                 // set when it hatches, not when the egg appears
@@ -258,7 +313,8 @@ function normalize(c) {
   out.eggTaps = Number.isFinite(out.eggTaps) ? out.eggTaps : 0;
   out.weight = Number.isFinite(out.weight) && out.weight > 0 ? out.weight : baseWeight(out.age);
   const t = out.traits && typeof out.traits === 'object' ? out.traits : {};
-  out.traits = { play: 0, love: 0, food: 0, rest: 0 };
+  // 갈래가 늘었다 — 예전에 저장된 아이는 없는 갈래를 0 으로 채워 받는다
+  out.traits = blankTraits();
   Object.keys(out.traits).forEach((k) => {
     if (Number.isFinite(t[k]) && t[k] >= 0) out.traits[k] = t[k];
   });
@@ -378,7 +434,8 @@ function advance(c, now, opts) {
   // energy gets.
   if (c.sleeping && c.energy >= 100 && !c.autoSleep) c.sleeping = false;
 
-  let dropped = Math.floor((now - c.lastPoop) / 60000 / POOP_EVERY_MIN);
+  // 깔끔한 아이는 덜 어지른다 — 성격이 이름표가 아니라 사는 방식이 되도록
+  let dropped = Math.floor((now - c.lastPoop) / 60000 / (POOP_EVERY_MIN / m.poop));
   if (dropped > 0) {
     c.lastPoop = now;
     while (dropped-- > 0 && c.poops.length < POOP_MAX) {
@@ -750,16 +807,20 @@ function actTrain(c) {
   if (c.fun < 30) return { ok: false, reason: '지금은 시큰둥해요' };
 
   const bond = ((c.traits && c.traits.love) || 0) + ((c.traits && c.traits.play) || 0);
-  const chance = Math.min(0.92, Math.max(0.15, 0.35 + bond * 0.012 + mods(c).trick));
+  const mt = mods(c);
+  const chance = Math.min(0.92, Math.max(0.15,
+                          (0.35 + bond * 0.012 + mt.trick) * mt.learn));
   c.energy = clamp(c.energy - 12);
   c.fun = clamp(c.fun + 6);
   c.sleeping = false;
-  bump(c, 'play', 0.5);
+  bump(c, 'play', 0.3);
+  bump(c, 'smart', 0.4);          // 가르치려 든 것만으로도 조금은 쌓인다
 
   if (Math.random() > chance) {
     return Object.assign({ ok: true, verb: '훈련', learned: null, trick },
                          award(c, 4));
   }
+  bump(c, 'smart', 1);            // 실제로 배웠을 때가 크다
   c.tricks = (c.tricks || []).concat([trick]);
   note(c, 'trick', '「' + trick + '」' + eul(trick) + ' 배웠어요');
   return Object.assign({ ok: true, verb: '훈련', learned: trick, trick },
@@ -803,6 +864,7 @@ function actClean(c, id) {
   c.poops = id ? c.poops.filter((p) => p.id !== id) : c.poops.slice(1);
   if (c.poops.length === before) return { ok: false, reason: '치울 게 없어요' };
   c.cleans = (c.cleans || 0) + 1;
+  bump(c, 'tidy', 1);
   return Object.assign({ ok: true, verb: '청소' }, award(c, 10));
 }
 
@@ -886,7 +948,7 @@ function decayTraits(c, now) {
 }
 
 function bump(c, key, amount) {
-  if (!c.traits) c.traits = { play: 0, love: 0, food: 0, rest: 0 };
+  if (!c.traits) c.traits = blankTraits();
   c.traits[key] = (c.traits[key] || 0) + amount;
 }
 
@@ -897,15 +959,34 @@ function bump(c, key, amount) {
    labelling it "성격: 아기" read as though being a baby were a
    personality. */
 function personality(c) {
-  if (c.egg) return null;
+  const k = natureKeys(c);
+  if (k === null) return null;
+  if (k.length === 0) return '평범';
+  if (k.length === 1) return PERSONALITY[k[0]];
+  return PERSONALITY_PAIR[pairKey(k[0], k[1])] || '평범';
+}
+
+/* 앞선 갈래를 순서대로 돌려준다.
+     null  아직 성격이라 할 게 없다(알·세 살 미만)
+     []    평범
+     [a]   한 갈래가 뚜렷하다
+     [a,b] 두 갈래가 나란히 앞선다
+
+   판정이 두 단계인 이유: 1등이 2등을 확실히 앞서면 그 하나가 성격이고,
+   그렇지 않더라도 **둘이 3등을 확실히 앞서면** 그 둘이 성격이다. 셋 이상이
+   엉키면 골고루 키운 것이니 평범이다. */
+function natureKeys(c) {
+  if (!c || c.egg) return null;
   if (c.age < 3) return null;
-  const entries = Object.keys(PERSONALITY)
+  const e = TRAIT_KEYS
     .map((k) => [k, (c.traits && c.traits[k]) || 0])
     .sort((a, b) => b[1] - a[1]);
-  const [top, second] = entries;
-  if (top[1] < 8) return '평범';                      // not enough to go on yet
-  if (second && second[1] > 0 && top[1] < second[1] * TRAIT_LEAD) return '평범';
-  return PERSONALITY[top[0]];
+  const [top, second, third] = e;
+  if (top[1] < TRAIT_MIN) return [];                     // 아직 판단할 게 없다
+  if (!second || top[1] >= second[1] * TRAIT_SOLO) return [top[0]];
+  if (second[1] < TRAIT_MIN) return [top[0]];            // 2등이 허수면 1등만
+  if (!third || second[1] >= third[1] * TRAIT_LEAD) return [top[0], second[0]];
+  return [];
 }
 
 /* ---------- what a pet is actually like ----------
@@ -914,10 +995,12 @@ function personality(c) {
    differently" a caption rather than a fact. These are the numbers that
    make them different animals. */
 const NATURE_MOD = {
-  play: { fun: 1.35, energy: 1.10, trick:  0.08, wander: 1.6 },   // 활발
-  love: { fun: 0.95, patFun: 7,    trick:  0.08 },                // 다정
-  food: { hunger: 1.40, snackFun: 1.5, gain: 1.15 },              // 먹보
-  rest: { energy: 0.75, fun: 0.85, trick: -0.06, wander: 0.6 }    // 느긋
+  play:  { fun: 1.35, energy: 1.10, trick:  0.08, wander: 1.6 },  // 활발
+  love:  { fun: 0.95, patFun: 7,    trick:  0.08 },               // 다정
+  food:  { hunger: 1.40, snackFun: 1.5, gain: 1.15 },             // 먹보
+  rest:  { energy: 0.75, fun: 0.85, trick: -0.06, wander: 0.6 },  // 느긋
+  tidy:  { poop: 0.7, fun: 0.95, wander: 0.85 },                  // 깔끔
+  smart: { trick: 0.14, fun: 1.10, learn: 1.5 }                   // 똑똑
 };
 
 const BUILD_MOD = {
@@ -927,21 +1010,32 @@ const BUILD_MOD = {
   heavy:  { energy: 1.25, playCost: 1.45, walkBurn: 1.3 }
 };
 
-/* the personality as a key rather than a label */
+/* 성격을 이름 대신 갈래 하나로 — 짝일 때는 앞선 쪽을 준다 */
 function natureKey(c) {
-  if (!c || c.egg || c.age < 3) return null;
-  const entries = Object.keys(PERSONALITY)
-    .map((k) => [k, (c.traits && c.traits[k]) || 0])
-    .sort((a, b) => b[1] - a[1]);
-  const [top, second] = entries;
-  if (top[1] < 8) return null;
-  if (second && second[1] > 0 && top[1] < second[1] * TRAIT_LEAD) return null;
-  return top[0];
+  const k = natureKeys(c);
+  return (k && k.length) ? k[0] : null;
 }
 
 /* every multiplier this pet lives by, in one place */
+/* 두 갈래가 겹치면 곱하는 값은 곱하고 더하는 값은 더한다 — 표를 짝마다
+   손으로 적으면 열다섯 벌이 되고, 한 축을 고칠 때마다 다섯 곳을 놓친다. */
+const NATURE_ADD = ['trick', 'patFun'];
+
+function natureMod(c) {
+  const keys = natureKeys(c) || [];
+  const out = {};
+  keys.forEach((k) => {
+    const m = NATURE_MOD[k] || {};
+    Object.keys(m).forEach((f) => {
+      if (NATURE_ADD.indexOf(f) >= 0) out[f] = (out[f] || 0) + m[f];
+      else out[f] = (out[f] === undefined ? 1 : out[f]) * m[f];
+    });
+  });
+  return out;
+}
+
 function mods(c) {
-  const n = NATURE_MOD[natureKey(c)] || {};
+  const n = natureMod(c);
   const b = BUILD_MOD[weightBand(c)] || {};
   const pick = (k, d) => (n[k] === undefined ? d : n[k]) * (b[k] === undefined ? 1 : b[k]);
   return {
@@ -954,19 +1048,37 @@ function mods(c) {
     gain:     (n.gain === undefined ? 1 : n.gain),
     snackFun: (n.snackFun === undefined ? 1 : n.snackFun),
     patFun:   (n.patFun === undefined ? 0 : n.patFun),
-    wander:   (n.wander === undefined ? 1 : n.wander)
+    wander:   (n.wander === undefined ? 1 : n.wander),
+    poop:     (n.poop === undefined ? 1 : n.poop),
+    learn:    (n.learn === undefined ? 1 : n.learn)
   };
 }
 
-/* a plain-Korean summary, so the difference is visible and not just felt */
+/* 무엇이 달라지는지 한국어로 — 성격이 딱지가 아니라는 걸 보이려면
+   이름 옆에 그 결과가 같이 있어야 한다. 짝이면 두 줄이 다 나온다. */
+const NATURE_NOTE = {
+  play:  '금방 심심해하고 자주 돌아다녀요',
+  love:  '쓰다듬어 주면 크게 좋아해요',
+  food:  '배가 빨리 고프고 간식을 무척 좋아해요',
+  rest:  '잘 지치지 않고 느긋해요',
+  tidy:  '덜 어지르고 얌전히 있는 편이에요',
+  smart: '호기심이 많아요'
+};
+
 function natureNote(c) {
-  const k = natureKey(c);
+  const keys = natureKeys(c) || [];
+  const bits = keys.map((k) => NATURE_NOTE[k]).filter(Boolean);
+
+  /* 배우는 속도는 갈래마다 적어 두면 안 된다 — 느긋(-0.06)과 똑똑(+0.14)이
+     겹친 아이한테 "배우는 건 느려요 · 금방 배워요" 가 나란히 붙었다.
+     합친 결과를 한 번만 말한다. */
+  if (keys.length) {
+    const t = mods(c).trick;
+    if (t >= 0.1) bits.push('가르치면 금방 배워요');
+    else if (t <= -0.03) bits.push('배우는 건 조금 느려요');
+  }
+
   const band = weightBand(c);
-  const bits = [];
-  if (k === 'play') bits.push('금방 심심해하고 자주 돌아다녀요');
-  else if (k === 'love') bits.push('쓰다듬어 주면 크게 좋아하고 배우는 게 빨라요');
-  else if (k === 'food') bits.push('배가 빨리 고프고 간식을 무척 좋아해요');
-  else if (k === 'rest') bits.push('잘 지치지 않지만 배우는 건 느려요');
   if (band === 'heavy') bits.push('무거워서 놀 때 금방 힘들어해요');
   else if (band === 'plump') bits.push('조금 무거워요');
   else if (band === 'slim') bits.push('가벼워서 잘 지치지 않아요');
@@ -1015,7 +1127,7 @@ function inherit(child, a, b) {
   const ta = a.traits || {}, tb = b.traits || {};
   child.tricks = inheritTricks(a, b);
   child.bornWith = child.tricks.slice();
-  child.traits = { play: 0, love: 0, food: 0, rest: 0 };
+  child.traits = blankTraits();
   Object.keys(child.traits).forEach((k) => {
     child.traits[k] = (((ta[k] || 0) + (tb[k] || 0)) / 2) * 0.5;
   });
@@ -1138,7 +1250,8 @@ module.exports = {
   blank, normalize, advance, view, wants, mood, titleFor, needFor, ga, ro, eul, neun,
   actFeed, actSnack, actPlay, actWalk, actSleep, actClean, actTrain, actPat, actGame,
   actPerform, showValue, MEALS, SNACKS, PLAYS, favourite, learned, canCook,
-  weightBand, baseWeight, personality, natureKey, natureNote, mods, nextTrick, TRICKS,
+  weightBand, baseWeight, personality, personalityNames, natureKey, natureKeys,
+  natureNote, mods, nextTrick, TRICKS,
   hatchProgress, hatch, warmEgg, canWarm, reset, stageFor, stageScale, isNight,
   canMate, whyNotMate, inherit, inheritTricks, markMated, MATE_AGE, note,
   stageTable, nextStage,
