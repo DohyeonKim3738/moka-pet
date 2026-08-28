@@ -807,9 +807,7 @@ function actTrain(c) {
   if (c.fun < 30) return { ok: false, reason: '지금은 시큰둥해요' };
 
   const bond = ((c.traits && c.traits.love) || 0) + ((c.traits && c.traits.play) || 0);
-  const mt = mods(c);
-  const chance = Math.min(0.92, Math.max(0.15,
-                          (0.35 + bond * 0.012 + mt.trick) * mt.learn));
+  const chance = Math.min(0.92, Math.max(0.15, 0.35 + bond * 0.012 + mods(c).trick));
   c.energy = clamp(c.energy - 12);
   c.fun = clamp(c.fun + 6);
   c.sleeping = false;
@@ -1000,7 +998,10 @@ const NATURE_MOD = {
   food:  { hunger: 1.40, snackFun: 1.5, gain: 1.15 },             // 먹보
   rest:  { energy: 0.75, fun: 0.85, trick: -0.06, wander: 0.6 },  // 느긋
   tidy:  { poop: 0.7, fun: 0.95, wander: 0.85 },                  // 깔끔
-  smart: { trick: 0.14, fun: 1.10, learn: 1.5 }                   // 똑똑
+  /* 재주 보정은 **더하기 하나로만** 준다. 곱하기(learn)를 같이 걸었더니
+     기본 35% 인 성공률이 똑똑 74%, 재간둥이 86% 가 되어 훈련이 거의 무조건
+     성공했다 — 재주 열 개 이정표가 성격 하나로 무너진다. */
+  smart: { trick: 0.14, fun: 1.10 }                               // 똑똑
 };
 
 const BUILD_MOD = {
@@ -1049,8 +1050,7 @@ function mods(c) {
     snackFun: (n.snackFun === undefined ? 1 : n.snackFun),
     patFun:   (n.patFun === undefined ? 0 : n.patFun),
     wander:   (n.wander === undefined ? 1 : n.wander),
-    poop:     (n.poop === undefined ? 1 : n.poop),
-    learn:    (n.learn === undefined ? 1 : n.learn)
+    poop:     (n.poop === undefined ? 1 : n.poop)
   };
 }
 
