@@ -930,6 +930,39 @@ console.log('# 왜 지금 못 하는가');
   ok('막대 트레이가 줄마다 이유를 받는다', /row\('밥',[^)]*no\.feed\)/.test(ringSrc));
   ok('막대 트레이가 낱개를 잠근다', /why \? ' disabled title=/.test(ringSrc));
 
+  /* ★같은 실수를 세 번 했다 — 막대의 놀기(1.28.0 전), 막대 트레이의 낱개
+     음식(1.28.0), 트레이 메뉴의 재주 시키기(1.29.0). 전부 "판정은 care.js 에
+     있는데 그 화면만 안 쓴" 경우다. 화면마다 실제로 쓰는지 못 박아 둔다. */
+  const careSrc = require('fs').readFileSync(
+    require('path').join(__dirname, '..', 'renderer', 'care.html'), 'utf8');
+  const mainSrc = require('fs').readFileSync(
+    require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  ok('돌보기 창의 재주가 판정을 쓴다',
+     /\(c\.blocked \|\| \{\}\)\.show/.test(careSrc));
+  ok('돌보기 창이 제 손으로 기력을 재지 않는다',
+     !/c\.energy\s*<\s*\d/.test(careSrc),
+     (careSrc.match(/c\.energy\s*<\s*\d+/g) || []).join(', '));
+  ok('트레이 메뉴의 재주가 판정을 쓴다',
+     /care\.blocked\(c\)\.show/.test(mainSrc));
+
+  // 기력이 모자라면 재주는 정말 막혀야 한다
+  const tired = care.blank(); care.hatch(tired);
+  tired.energy = 11; tired.tricks = ['앉아'];
+  ok('기력 11 이면 재주가 막힌다',
+     care.blocked(tired).show === '너무 지쳤어요', String(care.blocked(tired).show));
+  tired.energy = 40;
+  ok('기력이 있으면 재주가 열린다', care.blocked(tired).show === null);
+
+  // 신나 있으면 '못 하는' 것이 아니라 '해도 안 오르는' 것이다 — 막으면 안 된다
+  const jaded = care.blank(); care.hatch(jaded);
+  jaded.energy = 60; jaded.fun = 99; jaded.tricks = ['앉아'];
+  ok('신나 있어도 재주 자체는 막지 않는다', care.blocked(jaded).show === null,
+     String(care.blocked(jaded).show));
+
+  // 소품과 집 꾸미기는 같은 모양이어야 한다
+  ok('소품 드롭다운도 집 꾸미기와 같은 규칙을 받는다',
+     /#room \.slot select, #look \.slot select\{/.test(careSrc));
+
   // ★재 보는 것이 상태를 바꾸면 화면을 그릴 때마다 펫이 밥을 먹는다
   const before = JSON.stringify(c);
   care.blocked(c);

@@ -81,10 +81,13 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
 #missions .ttl{font-size:12px;color:var(--muted);margin-bottom:8px}
 /* the room, offered here rather than four levels into a tray menu */
 #room{margin-top:14px}
-#room .slot{display:flex;align-items:center;gap:8px;margin-top:6px}
-#room .slot .lb{flex:0 0 66px;color:var(--muted);font-size:11.5px}
-#room .slot select option:disabled{color:var(--muted)}
-#room .slot select{flex:1 1 auto;font:inherit;font-size:12px;padding:4px 8px;
+/* 집 꾸미기와 소품은 같은 모양이어야 한다. 이 규칙을 #room 에만 걸어
+   두었더니, 꾸미기 탭으로 옮긴 소품 드롭다운만 손대지 않은 기본 모양으로
+   나왔다. */
+#room .slot, #look .slot{display:flex;align-items:center;gap:8px;margin-top:6px}
+#room .slot .lb, #look .slot .lb{flex:0 0 66px;color:var(--muted);font-size:11.5px}
+#room .slot select option:disabled, #look .slot select option:disabled{color:var(--muted)}
+#room .slot select, #look .slot select{flex:1 1 auto;font:inherit;font-size:12px;padding:4px 8px;
                    border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--text)}
 #room .on{display:flex;align-items:center;gap:7px;font-size:12px}
 #room .hint{color:var(--muted);font-size:11px;margin-top:7px;line-height:1.5}
@@ -748,13 +751,19 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     // Say what a performance is worth, or nobody would know the repertoire
     // matters — and say when it has stopped being worth anything.
     var v = c.show || {};
-    var note = (c.energy < 12) ? '너무 지쳐서 못 해요'
-             : !v.keen ? '지금은 신나 있어서 배우는 건 없어요'
+    // 못 하는 이유는 care.js 가 판단한다. 여기에 기력 문턱을 다시 적어
+    // 두었더니, 같은 조건을 안 적은 트레이 메뉴만 열려 있었다.
+    var no = (c.blocked || {}).show;
+    var note = no ? no
+             : !v.keen ? '지금은 신나 있어서 해도 경험치는 안 올라요'
              : '한 번에 경험치 +' + v.exp + ' · 즐거움 +' + v.fun +
                (v.known < 10 ? '   (재주가 늘수록 더 커져요)' : '');
+    // 시들한 상태는 '못 하는' 것이 아니라 '해도 안 오르는' 것이다 —
+    // 잠그지 않고 눌렀을 때 헛일이 아님을 말해 준다.
+    var tip = no || (!v.keen ? '지금은 신나 있어서 경험치는 안 올라요' : '');
     host.innerHTML = '<div class="worth">' + note + '</div>' + list.map(function(t){
-      return '<button data-trick="' + t + '"' + (c.energy < 12 ? ' disabled' : '') +
-             '>' + t + '</button>';
+      return '<button data-trick="' + t + '"' + (no ? ' disabled' : '') +
+             (tip ? ' title="' + tip + '"' : '') + '>' + t + '</button>';
     }).join('');
     Array.prototype.forEach.call(host.querySelectorAll('[data-trick]'), function(b){
       b.addEventListener('click', function(){ api.trick(b.getAttribute('data-trick')); });

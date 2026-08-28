@@ -941,13 +941,20 @@ function buildMenu() {
     { label: `${pet.name} · ${sp.label}`, enabled: false },
     { type: 'separator' }
   ].concat(rosterMenu(), [
-    {
-      label: '재주 시키기',
-      enabled: (c.tricks || []).length > 0,
-      submenu: (c.tricks || []).length
-        ? c.tricks.map((t) => ({ label: t, click: () => doTrick(t) }))
-        : [{ label: '아직 배운 재주가 없어요', enabled: false }]
-    },
+    /* 못 하는 상태면 이유를 붙여 잠근다. 판정은 care.blocked 한 곳에서만
+       한다 — 여기서 조건을 다시 적으면 또 두 벌이 된다. 실제로 기력이
+       11 인데 이 메뉴만 그대로 열려 있었다. */
+    (() => {
+      const why = care.blocked(c).show;
+      const list = c.tricks || [];
+      return {
+        label: '재주 시키기' + (why && list.length ? ' — ' + why : ''),
+        enabled: list.length > 0 && !why,
+        submenu: list.length
+          ? list.map((t) => ({ label: t, enabled: !why, click: () => doTrick(t) }))
+          : [{ label: '아직 배운 재주가 없어요', enabled: false }]
+      };
+    })(),
     {
       label: '지금 하는 일',
       submenu: STATES.map(([label, id]) => ({
