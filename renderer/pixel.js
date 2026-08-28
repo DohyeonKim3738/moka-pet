@@ -443,17 +443,62 @@
      species may ship a second, purpose-drawn sprite for sleep. */
   /* Takes the lying part itself, not the species: there are two of them
      now (eye shut for sleep, eye open for 엎드려). */
+  /* Mirror a drawing left-to-right. The lying pet faces left; the standing
+     one faces you. A cap's peak has to turn round with it, and anything
+     symmetrical comes out unchanged, so this is safe to apply to the lot. */
+  function flip(art) {
+    return art.map(function (r) { return r.split('').reverse().join(''); });
+  }
+
+  /* The lying poses are their own drawings — they do not share the standing
+     rig, so they do not get its gear slots for free. Without this, every
+     accessory vanished the moment the pet lay down.
+
+     Front-on art cannot simply be moved here: a pair of spectacles drawn
+     face-first makes no sense on a head seen from the side. So each item
+     carries a second, side-on drawing (`side`), and each pose says where
+     its head, muzzle, collar and paws are (`gearAt`). Items with no side
+     drawing are left out rather than drawn wrong. */
+  function sleepSlots(part) {
+    var at = part.gearAt;
+    if (!at || !root.GEAR) return '';
+    var html = '';
+    root.GEAR.slots.forEach(function (kind) {
+      var anchor = at[kind];
+      if (!anchor) return;
+      var items = root.GEAR.items[kind] || {};
+      var id = (kind === 'head') ? 'prop' : ('slot-' + kind);
+      var inner = '';
+      Object.keys(items).forEach(function (key) {
+        var side = items[key].side;
+        // 게가 눕는 그림은 옆이 아니라 정면이다(등딱지와 좌우 집게).
+        // 자세가 요구하는 그림이 따로 있으면 그것을 쓴다.
+        if (side && side.poses && side.poses[part.pose]) side = side.poses[part.pose];
+        if (!side || !side.art) return;
+        inner += '<g data-gear="' + key + '" style="display:none">' +
+                 encode(side.art,
+                        (part.x || 0) + anchor[0] + side.at[0],
+                        (part.y || 0) + anchor[1] + side.at[1]) +
+                 '</g>';
+      });
+      if (inner) html += '<g id="' + id + '">' + inner + '</g>';
+    });
+    return html;
+  }
+
   function buildSleep(part) {
     if (!part || !part.rows) return null;
     return '<g shape-rendering="crispEdges" stroke="none">' +
              '<g id="sleepBody">' +
                encode(part.rows, part.x || 0, part.y || 0) +
              '</g>' +
+             sleepSlots(part) +
            '</g>';
   }
 
   root.PIXEL = {
     buildSleep: buildSleep,
+    flip: flip,
     DOT: DOT,
     PALETTE: PALETTE,
     encode: encode,

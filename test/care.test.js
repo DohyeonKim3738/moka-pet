@@ -1361,6 +1361,97 @@ console.log('# 목에 거는 소품이 머리에 가려지지 않는가');
   ok('네 체형 어디서도 소품이 사라지지 않는다', vanished.length === 0,
      vanished.slice(0, 4).join(', '));
 
+  /* ---------- 누운 그림에도 소품이 있는가 ----------
+     자는 그림과 엎드려는 서 있는 rig 를 안 쓰는 별개의 그림이다. 그래서
+     소품 자리를 **거저 얻지 못한다** — 오랫동안 걸치던 것이 누우면
+     통째로 사라졌다(서 있을 때 29개 → 누우면 0개). */
+  {
+    const SLOTS = ['head', 'eyes', 'hand', 'body'];
+    const every = [];
+    SLOTS.forEach((s) => Object.keys(window.GEAR.items[s]).forEach((k) => every.push([s, k])));
+
+    ok('소품 스물아홉 개가 다 있다', every.length === 29, String(every.length));
+
+    // 옆모습 그림이 없는 것이 있으면 그 소품만 조용히 사라진다
+    const noSide = every.filter(([s, k]) => {
+      const it = window.GEAR.items[s][k];
+      return !it.side || !it.side.art || !it.side.at;
+    });
+    ok('소품마다 옆모습 그림이 있다', noSide.length === 0,
+       noSide.map((p) => p.join('.')).join(', '));
+
+    const POSES = [];
+    ['capybara', 'dodam', 'shiba', 'danchu', 'crab'].forEach((key) => {
+      const sp = window.SPECIES.get(key);
+      POSES.push([key + ' 자기', sp.sleepMarkup()]);
+      if (sp.lieMarkup) POSES.push([key + ' 엎드려', sp.lieMarkup()]);
+    });
+
+    const missing = [];
+    POSES.forEach(([name, m]) =>
+      every.forEach(([, k]) => {
+        if (m.indexOf('data-gear="' + k + '"') < 0) missing.push(name + '/' + k);
+      }));
+    ok('누워도 소품이 사라지지 않는다', missing.length === 0,
+       missing.slice(0, 4).join(', '));
+
+    // 켜지 않은 소품이 켜져 있으면 스물아홉 개가 한꺼번에 겹쳐 보인다
+    const shown = POSES.filter(([, m]) =>
+      m.indexOf('data-gear="cap"><g') >= 0 ||
+      m.split('data-gear=').slice(1).some((chunk) => chunk.indexOf('display:none') < 0));
+    ok('누운 그림의 소품은 꺼진 채로 나온다', shown.length === 0,
+       shown.map((p) => p[0]).join(', '));
+
+    /* ★그림이 있어도 **자리**가 자세마다 다르다. 목에 감는 띠를 자기 자세
+       기준으로만 맞췄더니 엎드려에서는 바닥 아래로 세 줄 흘러내렸다.
+       그래서 소품이 몸 밖으로 나가지 않는지 자세마다 실제 좌표로 잰다. */
+    const stray = [];
+    ['capybara', 'dodam', 'crab'].forEach((key) => {
+      const sp = window.SPECIES.get(key);
+      [['자기', sp.sleep], ['엎드려', sp.lie]].forEach(([pname, part]) => {
+        if (!part || !part.gearAt) return;
+        const floor = part.rows.length;                 // 그림의 아래 끝
+        SLOTS.forEach((slot) => {
+          const a = part.gearAt[slot];
+          if (!a) return;
+          Object.keys(window.GEAR.items[slot]).forEach((k) => {
+            let side = window.GEAR.items[slot][k].side;
+            if (side.poses && side.poses[part.pose]) side = side.poses[part.pose];
+            // 아래 여백은 안 보이니 **칠해진 아랫변**으로 잰다
+            let ink = -1;
+            side.art.forEach((r, y) => { if (r.replace(/\./g, '') !== '') ink = y; });
+            const bottom = a[1] + side.at[1] + ink + 1;
+            // 손에 든 것은 바닥에 내려놓으므로 바닥 줄까지가 정상이다
+            if (bottom > floor) stray.push(key + ' ' + pname + '/' + k + ' ' + bottom + '>' + floor);
+          });
+        });
+      });
+    });
+    ok('누운 그림에서 소품이 몸 밖으로 흘러내리지 않는다', stray.length === 0,
+       stray.slice(0, 4).join(', '));
+
+    /* 게가 눕는 그림만은 옆이 아니라 정면이다(등딱지와 좌우 집게).
+       옆모습 안경알 하나를 얹으면 등딱지에 붙인 스티커가 된다. */
+    ok('게는 정면용 소품 그림을 따로 쓴다',
+       ['horn', 'rimless', 'half', 'sun'].every((k) =>
+         window.GEAR.items.eyes[k].side.poses &&
+         window.GEAR.items.eyes[k].side.poses.crab));
+    ok('게가 눕는 그림은 자기를 crab 이라 밝힌다',
+       window.SPECIES.get('crab').sleep.pose === 'crab');
+
+    /* 후광은 머리 **위에 뜬 고리**가 되면 안 된다 — 천사링으로 읽혀
+       죽은 것처럼 보인다는 지적을 받은 적이 있다. 머리를 감싸고 내려와야
+       하므로, 아래로 뻗은 다리가 위쪽 호보다 길다. */
+    const halo = window.GEAR.items.head.halo.side.art;
+    const width = halo[0].length;
+    const legs = halo.filter((r) => {
+      const ink = r.split('').map((c, i) => c === '.' ? -1 : i).filter((i) => i >= 0);
+      return ink.length > 0 && ink.length <= 4 && ink[ink.length - 1] > width / 2;
+    }).length;
+    ok('후광은 고리가 아니라 머리를 감싼다', legs >= halo.length / 2,
+       legs + '/' + halo.length);
+  }
+
   /* ★금메달은 천이 아니라 물건이다. widen() 은 옷을 몸에 맞추려고 줄
      가운데의 칸을 지우는데, 딱딱한 물건에 그러면 속이 파인다 — 예전에
      날씬한 몸에서 금메달이 72칸 중 30칸만 남아 금색 조각이 됐다.
@@ -1413,9 +1504,13 @@ console.log('# 뒷모습');
     const sp = window.SPECIES.get(k);
     ok(k + ': 엎드려 그림이 따로 있다', !!sp.lieMarkup && sp.lieMarkup() !== sp.sleepMarkup());
 
-    // the glint only exists on an open eye
-    ok(k + ': 엎드려는 눈을 떴다', sp.lieMarkup().indexOf('#FFFFFF') >= 0);
-    ok(k + ': 자기는 눈을 감았다', sp.sleepMarkup().indexOf('#FFFFFF') < 0);
+    // 반짝임(흰 점)은 뜬 눈에만 있다. 몸 그림 안에서만 찾는다 —
+    // 소품에도 흰색이 있어서(앞치마·금메달·뼈다귀…) 그림 전체를 뒤지면
+    // '눈을 떴다'가 아니라 '소품을 걸쳤다'를 재게 된다
+    const eyeOf = (m) => m.slice(m.indexOf('id="sleepBody"'),
+                                 m.indexOf('</g>', m.indexOf('id="sleepBody"')));
+    ok(k + ': 엎드려는 눈을 떴다', eyeOf(sp.lieMarkup()).indexOf('#FFFFFF') >= 0);
+    ok(k + ': 자기는 눈을 감았다', eyeOf(sp.sleepMarkup()).indexOf('#FFFFFF') < 0);
 
     const top = (rows) => rows.findIndex((r) => /[^.]/.test(r));
     ok(k + ': 엎드려가 머리를 더 들고 있다', top(sp.lie.rows) < top(sp.sleep.rows),

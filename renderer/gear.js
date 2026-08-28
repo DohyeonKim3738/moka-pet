@@ -514,6 +514,161 @@
     }
   };
 
+  /* ---------- 옆모습 ----------
+     자는 그림과 엎드려는 서 있는 rig 를 쓰지 않는 별개의 그림이고, 옆을
+     본다. 정면으로 그린 소품을 그대로 얹으면 안경알 두 개가 옆얼굴에
+     나란히 붙는 꼴이 된다. 그래서 소품마다 옆모습 그림을 따로 둔다.
+
+     `at` 은 자세가 알려 준 기준점에서의 상대 좌표다(species.js 의 gearAt).
+     머리 소품은 좌우를 뒤집기만 하면 된다 — 누운 아이는 왼쪽을 보고,
+     서 있는 아이는 이쪽을 본다. 모자챙도 같이 돌아야 한다. 대칭인 것들은
+     뒤집어도 그대로라 전부에 걸어도 안전하다. */
+
+  /* 그림의 여백은 물건마다 다르다 — 눈대중으로 at 을 적으면 어떤 것은 뜨고
+     어떤 것은 파묻힌다. 그러니 **실제로 칠해진 부분의 경계를 재서** 가운데를
+     기준점에 맞추고, 아랫변을 머리 꼭대기에 앉힌다. `sink` 는 머리에 눌러
+     쓰는 정도다 — 모자는 파고들고, 얹어 두는 것(유자·별)은 0 이다. */
+  function inkBox(art) {
+    var x0 = 1e9, x1 = -1e9, y1 = -1;
+    art.forEach(function (row, y) {
+      for (var x = 0; x < row.length; x++) {
+        if (row[x] === '.') continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y > y1) y1 = y;
+      }
+    });
+    return { x0: x0, x1: x1, y1: y1 };
+  }
+
+  function seat(art, sink, nudge) {
+    var b = inkBox(art);
+    return { art: art,
+             at: [-Math.round((b.x0 + b.x1) / 2) + (nudge || 0), -(b.y1 + 1) + sink] };
+  }
+
+  function sideHead(key, sink, nudge) {
+    var art = HEAD[key].art;
+    HEAD[key].side = seat(P.flip(art), sink, nudge);
+    // 게는 정면으로 눕는다 — 뒤집으면 챙이 반대로 간다
+    HEAD[key].side.poses = { crab: seat(art, sink, nudge) };
+  }
+
+  sideHead('yuzu',   0);
+  sideHead('leaf',   0);
+  sideHead('star',   0);
+  sideHead('cap',    2);
+  sideHead('beret',  2);
+  sideHead('ribbon', 1);
+  sideHead('crown',  1);
+  /* 후광은 정면용이 36 폭짜리 큰 원이라 옆에서는 머리를 한참 넘어선다.
+     옆모습용을 따로 그리되 **머리 위에 뜬 고리로 그리면 안 된다** — 그러면
+     천사링이 되어 죽은 것처럼 보인다. 머리를 감싸고 내려오는 빛무리라야 한다. */
+  HEAD.halo.side = { at: [-8, -8], art: ['......yyyy......',
+                                         '....yyYYYYyy....',
+                                         '..yyY......Yyy..',
+                                         '.yY..........Yy.',
+                                         'yY............Yy',
+                                         'y..............y',
+                                         'y..............y',
+                                         'y..............y',
+                                         'y..............y',
+                                         'y..............y',
+                                         '.y............y.',
+                                         '.y............y.',
+                                         '..y..........y..',
+                                         '..y..........y..',
+                                         '...y........y...'] };
+  HEAD.halo.side.poses = { crab: { at: [-10, -11], art: HEAD.halo.side.art } };
+
+  /* 안경은 옆에서 보면 알 하나와 뒤로 뻗은 다리다. 아이가 왼쪽을 보므로
+     알이 왼쪽, 다리가 오른쪽으로 간다. */
+  EYES.horn.side    = { at: [-1, -2], art: ['KKKKK....',
+                                            'KKKKK....',
+                                            'K...KKKKK',
+                                            'K...K....',
+                                            'KKKKK....'] };
+  EYES.rimless.side = { at: [-1, -2], art: ['.AAAA....',
+                                            '.A..A....',
+                                            '.A..AAAAA',
+                                            '.A..A....',
+                                            '.AAAA....'] };
+  EYES.half.side    = { at: [-1, -2], art: ['KKKKK....',
+                                            'K...K....',
+                                            'K...KKKKK',
+                                            'K...K....',
+                                            '.........'] };
+  EYES.sun.side     = { at: [-1, -2], art: ['KKKKK....',
+                                            'KHKKK....',
+                                            'KKKKKKKKK',
+                                            'KKKKK....',
+                                            'KKKKK....'] };
+
+  /* 게가 눕는 그림은 정면이다 — 접힌 눈자루 두 개가 나란히 보인다.
+     옆모습 안경알 하나를 얹으면 등딱지에 붙인 스티커처럼 보인다. */
+  function crabEyes(key, art) { EYES[key].side.poses = { crab: { at: [-5, -1], art: art } }; }
+
+  crabEyes('horn',    ['KKKK.KKKK.', 'KKKK.KKKK.', 'K..KKK..K.', 'KKKK.KKKK.']);
+  crabEyes('rimless', ['AAA...AAA.', 'A.A.A.A.A.', 'AAA...AAA.', '..........']);
+  crabEyes('half',    ['KKKK.KKKK.', 'K..KKK..K.', 'K..K.K..K.', '..........']);
+  crabEyes('sun',     ['KKKK.KKKK.', 'KHKK.KHKK.', 'KKKKKKKKK.', 'KKKK.KKKK.']);
+
+  /* 옆으로 누우면 목은 **세로로** 지나간다 — 머리가 왼쪽, 몸이 오른쪽이니
+     목을 감는 것은 세로 띠로 보인다. 정면용 26 폭 그림을 눕혀 얹으면 몸
+     밖으로 한참 삐져나가고, 귀 위에 걸린다. 그래서 어깻죽지를 세로로 감는
+     띠를 따로 그린다.
+
+     아홉 줄로 맞춘 것은 세 자세(자기·엎드려·게)의 어깨 높이가 제각각이라
+     그렇다 — 기준점을 목 위쪽에 두고 길이를 가장 짧은 자세에 맞추면 어디서도
+     몸 밖으로 흘러내리지 않는다. */
+  function sideBody(key, art) { BODY[key].side = { art: art, at: [0, 0] }; }
+
+  sideBody('scarf',    ['.KKKK.', 'KRRRRK', 'KRRRRK', 'KRRRRK', 'KRRRRK',
+                        'KRRRRK', '.KKKK.', '.KRRK.', '.KKKK.']);
+  sideBody('bowtie',   ['.KKKK.', 'KKKKKK', 'KKKKKK', 'KKKKKK', 'KKKKKK',
+                        '.KKKK.', 'KRRHRK', 'KRRRRK', '.KKKK.']);
+  sideBody('medal',    ['.RRRR.', 'RRRRRR', 'RRRRRR', 'RRRRRR', '.RRRR.',
+                        '.KKKK.', 'KYYYYK', 'KYyWYK', '.KKKK.']);
+  sideBody('hoodie',   ['.KKKK.', 'KCCCCK', 'KCCCCK', 'KCCCCK', 'KCCCCK',
+                        'KCCCCK', 'KCCCCK', 'KCCCCK', '.KKKK.']);
+  sideBody('overalls', ['.KKKK.', 'KCCCCK', 'KC..CK', 'KC..CK', 'KCCCCK',
+                        'KYCCYK', 'KCCCCK', 'KCCCCK', '.KKKK.']);
+  sideBody('apron',    ['.KKKK.', 'KRRRRK', '.KKKK.', 'KWWWWK', 'KWWWWK',
+                        'KWWWWK', 'KWWWWK', 'KWWWWK', '.KKKK.']);
+  sideBody('robe',     ['.KKKK.', 'KCCCCK', 'KCCCCK', 'KYYYYK', 'KCCCCK',
+                        'KCCCCK', 'KYYYYK', 'KCCCCK', '.KKKK.']);
+  sideBody('cape',     ['.YYYY.', 'KGGGGK', 'KGGGGK', 'KGGGGK', 'KGGGGK',
+                        'KGGGGK', 'KGGGGK', 'KGGGGK', '.KKKK.']);
+
+  /* 손에 든 것은 누우면 내려놓는다 — 코앞 바닥에 둔다. 서 있을 때 쓰던
+     그림을 그대로 쓴다(물건은 어느 쪽에서 봐도 물건이다). 다만 빗자루와
+     지팡이는 세로로 긴 물건이라 눕혀 그린다. */
+  function sideHand(key, dx, art) {
+    // 바닥에 놓는 것이라 **칠해진 아랫변**이 바닥 줄에 닿아야 한다.
+    // 그림마다 아래 여백이 달라서 at 을 손으로 적으면 어떤 건 뜨고 어떤 건 파묻힌다.
+    var a = art || HAND[key].art;
+    HAND[key].side = { art: a, at: [dx, -(inkBox(a).y1 + 1)] };
+  }
+  sideHand('coffee',   0);
+  sideHand('balloon',  0);
+  sideHand('flowers',  0);
+  sideHand('notebook', 0);
+  sideHand('suitcase', 0);
+  sideHand('bone',     0);
+  sideHand('mic',      1);
+  sideHand('broom', -2, ['.KKKKKKKKKKK..',
+                         'KKSSSSSSSSSSK.',
+                         'KYYYYKSSSSSSSK',
+                         'KYYYYKSSSSSSSK',
+                         'KYYYYKSSSSSSSK',
+                         '.KKKKKKKKKKKK.']);
+  sideHand('cane',  -2, ['....KKKKKKKKKK',
+                         '.KKKSSSSSSSSSK',
+                         'KYYKSSSSSSSSSK',
+                         'KYyK..........',
+                         '.KK...........']);
+
+
   /* ---------- droppings ----------
      Fixed browns, not the species palette: it should read as the same
      thing whatever colour the pet is. */

@@ -1,30 +1,50 @@
-<!doctype html><html><head><meta charset="utf-8"><title>엎드려 · 자기</title>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>누운 자세 소품 점검</title>
 <link rel="stylesheet" href="sprite.css">
 <style>
-body{margin:0;background:#EDE9E3;font:12px -apple-system,sans-serif;color:#333;padding:14px}
-h2{font-size:13px;margin:10px 2px 6px;color:#555}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.cell{background:#fff;border-radius:10px;padding:6px;text-align:center}
+body{margin:0;background:#26262b;font:12px -apple-system,"Apple SD Gothic Neo",sans-serif;color:#bbb;padding:10px}
+h2{color:#ddd;font-size:12px;margin:12px 4px 4px}
+.row{display:grid;gap:4px}
+.cell{background:#1b1b1f;border-radius:8px;padding:4px}
 .cell svg{display:block;width:100%;height:auto}
-.n{font-size:11.5px;margin-top:2px;color:#555}
-</style></head><body>
-<h2>엎드려 — 눈 뜨고 머리 들고 앞다리 뻗음</h2><div class="grid" id="a"></div>
-<h2>자기 — 감은 눈, 웅크림</h2><div class="grid" id="b"></div>
+.n{text-align:center;font-size:10.5px;margin-top:2px;color:#999}
+</style></head><body><div id="all"></div>
 <script>
-['pixel.js','gear.js','tint.js','room.js','species.js'].forEach(function(f){
-  document.write('<script src="' + f + '?' + Date.now() + Math.random() + '"><\/script>');
+['pixel.js','gear.js','tint.js','species.js'].forEach(function(f){
+  document.write('<script src="'+f+'?'+Date.now()+Math.random()+'"><\/script>');
 });
 </script>
 <script>
-window.SPECIES.list.forEach(function(sp){
-  [['a','lieMarkup'],['b','sleepMarkup']].forEach(function(pair){
-    var host=document.getElementById(pair[0]);
-    var d=document.createElement('div'); d.className='cell';
-    var art = sp[pair[1]] ? sp[pair[1]]() : sp.markup();
-    d.innerHTML='<div data-sleepart="1"><svg viewBox="20 110 220 130" style="'+
-      window.TINT.css({fur:sp.fur,belly:sp.belly},sp)+'">'+art+'</svg></div>'+
-      '<div class="n">'+sp.label+'</div>';
-    host.appendChild(d);
+var q=new URLSearchParams(location.search);
+var KEY=q.get('key')||'dodam';
+var POSE=q.get('pose')||'sleep';   // sleep | lie
+var ONLY=q.get('slot');
+var COLS=+(q.get('cols')||0);
+var all=document.getElementById('all');
+var G=window.GEAR;
+var SLOTS=ONLY?[ONLY]:G.slots;
+SLOTS.forEach(function(slot){
+  var keys=Object.keys(G.items[slot]);
+  var h='<h2>'+G.labels[slot]+'</h2><div class="row" style="grid-template-columns:repeat('+(COLS||keys.length)+',1fr)">';
+  keys.forEach(function(k){
+    var sp=window.SPECIES.get(KEY);
+    var art=(POSE==='lie'&&sp.lieMarkup)?sp.lieMarkup():sp.sleepMarkup();
+    var mark='';
+    if(q.get('mark')){
+      var part=(POSE==='lie')?sp.lie:sp.sleep, ga=part.gearAt||{};
+      Object.keys(ga).forEach(function(kk){
+        mark+='<rect x="'+((part.x+ga[kk][0])*5)+'" y="'+((part.y+ga[kk][1])*5)+'" width="5" height="5" fill="#f0f"/>';
+      });
+    }
+    h+='<div class="cell"><svg viewBox="-20 -40 280 300" style="'+window.TINT.css({fur:sp.fur,belly:sp.belly},sp)+'">'+art+mark+'</svg><div class="n">'+(G.items[slot][k].label||k)+'</div></div>';
+  });
+  all.insertAdjacentHTML('beforeend', h+'</div>');
+});
+// 칸마다 그 칸의 소품만 켠다
+var ci=0;
+SLOTS.forEach(function(slot){
+  Object.keys(G.items[slot]).forEach(function(k){
+    var cell=document.querySelectorAll('.cell')[ci++];
+    cell.querySelectorAll('[data-gear="'+k+'"]').forEach(function(e){ e.style.display=''; });
   });
 });
 </script></body></html>

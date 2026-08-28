@@ -745,7 +745,7 @@ html,body{
 
   var current = null;   // species key currently drawn
   var isAsleep = false; // mirrors care.sleeping, so a click can react differently
-  var curSp = null, curPet = null, sleepShown = false;
+  var curSp = null, curPet = null, sleepShown = false, sleepArt = null;
   var curKey = null, curStage = 'adult', curHatch = 0, curEgg = false, curBuild = 'normal';
 
   function paint(pet, sp){
@@ -1058,13 +1058,19 @@ html,body{
     // Same drawing, different eye: asleep it is shut, told to lie down it
     // is open. Without that, 엎드려 looked like the pet had nodded off.
     var want = (why === 'lie' && curSp.lieMarkup) ? curSp.lieMarkup() : curSp.sleepMarkup();
-    if(sleeping && (!sleepShown || petAnim.innerHTML !== want)){
+    // 그려 둔 것과 견주는 기준은 innerHTML 이 아니라 이 변수다 — 소품을
+    // 켜고 끄면 innerHTML 이 달라져서, 그대로 두면 틱마다 다시 그린다
+    if(sleeping && (!sleepShown || sleepArt !== want)){
+      sleepArt = want;
       petAnim.innerHTML = want;
+      // 누운 그림에도 소품 자리가 있다 — 서 있을 때와 똑같이 고른 것만 켠다
+      if(curPet) wearGear(curPet);
       sleepShown = true;
       wrap.setAttribute('data-sleepart', '1');
     } else if(!sleeping && sleepShown){
       draw(curSp);
       if(curPet) paint(curPet, curSp);
+      sleepArt = null;
       wrap.removeAttribute('data-sleepart');
     }
   }

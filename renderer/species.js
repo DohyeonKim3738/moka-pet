@@ -738,6 +738,14 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
   var EARS_ALERT = { flop: [9, 1], flopS: [9, 1], point: [9, -2], nub: [9, 0], fold: [9, -1] };
   var TAILS_ALERT = { pom: [32, 7], nub: [33, 10], plume: [31, 6], long: [32, 5], flat: [32, 10] };
 
+  /* 누운 자세에도 소품이 붙는다. 자세마다 머리 꼭대기·눈·목·바닥이
+     어디인지 알려 주면, pixel.js 가 소품의 옆모습 그림을 그 자리에 얹는다.
+     손에 들던 것은 코앞 바닥에 내려놓는다 — 자면서 빗자루를 쥐고 있을
+     수는 없으니. */
+  var LYING_GEAR = { head: [7, 5], eyes: [5, 8], body: [14, 3], hand: [-11, 16] };
+  var ALERT_GEAR = { head: [7, 0], eyes: [5, 3], body: [16, 6], hand: [-11, 16] };
+  var CRAB_GEAR  = { head: [17, 0], eyes: [12, 4], body: [15, 1], hand: [-11, 13] };
+
   function lyingAlert(opts) {
     var g = shadeRows(fromSpans(36, 17, ALERT_SPANS), 1, 2);
 
@@ -756,7 +764,7 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
     var tAt = TAILS_ALERT[opts.tail || 'pom'];
     g = P.stamp(g, tail.art, tAt[0], tAt[1]);
 
-    return { x: 6, y: 26, rows: g };
+    return { x: 6, y: 26, rows: g, gearAt: ALERT_GEAR, pose: 'lie' };
   }
 
   function lying(opts) {
@@ -777,7 +785,7 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
     var tail = TAILS_LYING[opts.tail || 'pom'];
     g = P.stamp(g, tail.art, tail.at[0], tail.at[1]);
 
-    return { x: 6, y: 26, rows: g };
+    return { x: 6, y: 26, rows: g, gearAt: LYING_GEAR, pose: 'sleep' };
   }
 
   /* The crab sleeps the way a crab does: it settles. The shell comes down
@@ -808,7 +816,7 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
     // a little colour where the shell meets the ground
     g = P.stamp(g, patch([3, 3], 'p'), 6, 8);
     g = P.stamp(g, patch([3, 3], 'p'), 27, 8);
-    return { x: 6, y: 30, rows: g };
+    return { x: 6, y: 30, rows: g, gearAt: CRAB_GEAR, pose: 'crab' };
   }
 
   /* Each takes `awake`: 자기 gets the shut eye, 엎드려 the open one. */
