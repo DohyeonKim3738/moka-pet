@@ -1346,6 +1346,40 @@ console.log('# 목에 거는 소품이 머리에 가려지지 않는가');
     });
   }));
   ok('손에 든 것이 어느 종에서도 팔에 닿는다', loose.length === 0, loose.slice(0, 4).join(', '));
+
+  /* 체형(날씬·보통·통통·포동포동)까지 넣어 훑는다. 지금까지의 검사는
+     전부 '보통'만 봤다. */
+  const BUILDS = ['normal', 'slim', 'plump', 'heavy'];
+  const vanished = [];
+  window.SPECIES.list.forEach((spx) => STAGES.forEach((st) => BUILDS.forEach((b) => {
+    const m = window.SPECIES.at(spx.key, st, b).markup();
+    ['head', 'eyes', 'hand', 'body'].forEach((slot) =>
+      Object.keys(window.GEAR.items[slot]).forEach((k) => {
+        if (!rowsOf(m, k)) vanished.push(spx.key + '/' + st + '/' + b + '/' + k);
+      }));
+  })));
+  ok('네 체형 어디서도 소품이 사라지지 않는다', vanished.length === 0,
+     vanished.slice(0, 4).join(', '));
+
+  /* ★금메달은 천이 아니라 물건이다. widen() 은 옷을 몸에 맞추려고 줄
+     가운데의 칸을 지우는데, 딱딱한 물건에 그러면 속이 파인다 — 예전에
+     날씬한 몸에서 금메달이 72칸 중 30칸만 남아 금색 조각이 됐다.
+     `stretch: false` 가 그걸 막는다.
+
+     "체형이 바뀌어도 칸 수가 같은가" 로 검사하려 했더니, 플래그를 떼는
+     순간 그 물건이 '천'으로 분류되어 검사에서 빠졌다 — 지킬 대상을
+     스스로 예외로 삼는 순환이었다. 그래서 플래그 자체를 못 박는다. */
+  ok('금메달은 몸에 맞춰 늘어나지 않는다',
+     window.GEAR.items.body.medal.stretch === false,
+     String(window.GEAR.items.body.medal.stretch));
+
+  const slimMedal = (() => {
+    const m = window.SPECIES.at('capybara', 'adult', 'slim').markup();
+    const i = m.indexOf('data-gear="medal"');
+    const segm = m.slice(i, m.indexOf('</g>', i));
+    return [...segm.matchAll(/width="(\d+)"/g)].map((x) => +x[1] / 5).reduce((a, c) => a + c, 0);
+  })();
+  ok('날씬한 몸에서도 금메달이 온전하다', slimMedal === 72, String(slimMedal));
 }
 
 console.log('# 뒷모습');
