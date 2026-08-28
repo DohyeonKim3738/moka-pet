@@ -329,10 +329,13 @@
      몸통이 짧아진 만큼 옷을 올려 주는 보정인데, 목에 있는 것은 그만큼
      머리 속으로 밀려 들어가 아기와 어린이에서는 아예 보이지 않았다.
      `belowHead: n` 을 단 소품은 머리 아래끝을 기준으로 놓는다. */
-  function slotGroup(kind, off, fat, headY, headBottom) {
+  function slotGroup(kind, off, fat, headY, headBottom, dup) {
     var items = (root.GEAR && root.GEAR.items[kind]) || {};
     var id = (kind === 'head') ? 'prop' : ('slot-' + kind);
-    var html = '<g id="' + id + '">';
+    /* id 말고 data-slot 으로도 찾을 수 있게 해 둔다 — 하이파이브 때 팔을 앞에
+       한 벌 더 그리는데, id 는 문서에 하나뿐이어야 하므로 복사본은 id 를
+       못 단다. 화면은 data-slot 으로 두 벌을 모두 켠다. */
+    var html = '<g' + (dup ? '' : ' id="' + id + '"') + ' data-slot="' + kind + '">';
     Object.keys(items).forEach(function (key) {
       var it = items[key];
       // Clothing is cut to fit, so it grows and shrinks with the body.
@@ -416,6 +419,16 @@
           slotGroup('head', off('head'), 0, p.head ? p.head.y : null,
                     p.head ? p.head.y + p.head.rows.length : null) +
         '</g></g>' +
+        /* ★올린 팔이 머리 뒤로 숨는 문제. SVG 에는 z-index 가 없어서 그리는
+           순서가 곧 앞뒤다 — 팔은 몸보다 먼저 그려지므로 위로 올리면 머리에
+           가린다. 팔을 통째로 몸 뒤에서 앞으로 옮기면 빙글·구르기의 뒷모습
+           덮개(backBody)까지 어긋나므로, **앞에 한 벌 더** 그려 두고
+           하이파이브 때만 이쪽을 보여 준다(평소에는 투명).
+           손에 든 것도 같이 따라가야 하므로 손 자리를 함께 복사한다. */
+        '<g id="frontArms" style="opacity:0">' +
+          part('armLF', p.armL) +
+          part('armRF', p.armR, slotGroup('hand', off('hand'), 0, null, null, true)) +
+        '</g>' +
       '</g>';
 
     return html;
@@ -474,14 +487,17 @@
         // 게가 눕는 그림은 옆이 아니라 정면이다(등딱지와 좌우 집게).
         // 자세가 요구하는 그림이 따로 있으면 그것을 쓴다.
         if (side && side.poses && side.poses[part.pose]) side = side.poses[part.pose];
-        if (!side || !side.art) return;
+        if (!side) return;
+        // 목에 감는 띠는 길이를 자세가 정한다 — 자세마다 목 두께가 다르다
+        var art = side.build ? side.build(anchor[2] || 8) : side.art;
+        if (!art) return;
         inner += '<g data-gear="' + key + '" style="display:none">' +
-                 encode(side.art,
+                 encode(art,
                         (part.x || 0) + anchor[0] + side.at[0],
                         (part.y || 0) + anchor[1] + side.at[1]) +
                  '</g>';
       });
-      if (inner) html += '<g id="' + id + '">' + inner + '</g>';
+      if (inner) html += '<g id="' + id + '" data-slot="' + kind + '">' + inner + '</g>';
     });
     return html;
   }

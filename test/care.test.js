@@ -1087,6 +1087,45 @@ console.log('# 왜 지금 못 하는가');
   ok('트레이 메뉴의 재주가 판정을 쓴다',
      /care\.blocked\(c\)\.show/.test(mainSrc));
 
+  /* ---------- 하이파이브 때 손이 앞으로 오는가 ----------
+     SVG 에는 z-index 가 없다 — 그리는 순서가 곧 앞뒤다. 팔은 몸보다 먼저
+     그려지므로 위로 올리면 머리에 가려 손이 통째로 사라졌다. 팔을 통째로
+     앞으로 옮기면 빙글·구르기의 뒷모습 덮개까지 어긋나므로, 앞에 한 벌 더
+     그려 두고 그때만 켠다. */
+  {
+    const m = window.SPECIES.get('dodam').markup();
+    const idxSrc = require('fs').readFileSync(
+      require('path').join(__dirname, '..', 'renderer', 'index.html'), 'utf8');
+
+    ok('앞에 그릴 팔 한 벌이 있다',
+       m.indexOf('id="frontArms"') >= 0 &&
+       m.indexOf('id="armLF"') >= 0 && m.indexOf('id="armRF"') >= 0);
+    ok('앞팔은 머리보다 나중에 그려진다',
+       m.indexOf('id="frontArms"') > m.indexOf('id="headGaze"'));
+
+    // 손에 든 것도 같이 올라가야 한다 — 자리가 두 벌이어야 한다
+    ok('손 자리가 두 벌이다',
+       (m.match(/data-slot="hand"/g) || []).length === 2,
+       String((m.match(/data-slot="hand"/g) || []).length));
+    // 같은 id 가 둘이면 문서가 깨지고 querySelector 가 하나만 집는다
+    ok('같은 id 를 두 번 쓰지 않는다',
+       (m.match(/id="slot-hand"/g) || []).length === 1);
+    // 그래서 화면은 id 가 아니라 data-slot 으로 찾아야 한다
+    ok('화면이 소품 자리를 data-slot 으로 찾는다',
+       /querySelectorAll\('\[data-slot="' \+ slot \+ '"\]'\)/.test(idxSrc));
+
+    /* ★!important 가 빠지면 조용히 안 보인다. 앞팔은 마크업에 opacity:0 을
+       직접 달고 있어서(스타일시트 없이 그리는 창에서 팔이 두 겹으로 보이면
+       안 되므로) 보통 규칙으로는 못 이긴다 — 실제로 이걸로 한 번 헛돌았다. */
+    ok('앞팔을 켜는 규칙이 인라인을 이긴다',
+       /#wrap\[data-state="high"\] #frontArms\{opacity:1 !important\}/.test(idxSrc));
+    ok('하이파이브 때 원래 팔은 숨는다',
+       /#wrap\[data-state="high"\] #armL,\s*\n#wrap\[data-state="high"\] #armR\{opacity:0\}/.test(idxSrc));
+    ok('앞팔에도 같은 회전축이 있다',
+       /#armLF\{transform-origin:var\(--o-armL/.test(idxSrc) &&
+       /#armRF\{transform-origin:var\(--o-armR/.test(idxSrc));
+  }
+
   /* ---------- 알아두기가 사실을 말하는가 ----------
      안내는 틀리면 없느니만 못하다. "즐거움이 절반만"이라 적어 놓고 코드가
      0.7 이면 거짓말이다. 적힌 값이 아니라 **실제 동작**과 맞대어 본다. */
@@ -1593,9 +1632,11 @@ console.log('# 목에 거는 소품이 머리에 가려지지 않는가');
     ok('소품 스물아홉 개가 다 있다', every.length === 29, String(every.length));
 
     // 옆모습 그림이 없는 것이 있으면 그 소품만 조용히 사라진다
+    // 목에 감는 띠는 길이를 자세가 정하므로 그림 대신 짜는 법(build)을 갖는다
+    const artOf = (side, h) => (side && side.build) ? side.build(h || 8) : (side && side.art);
     const noSide = every.filter(([s, k]) => {
       const it = window.GEAR.items[s][k];
-      return !it.side || !it.side.art || !it.side.at;
+      return !it.side || !it.side.at || !artOf(it.side);
     });
     ok('소품마다 옆모습 그림이 있다', noSide.length === 0,
        noSide.map((p) => p.join('.')).join(', '));
@@ -1637,9 +1678,10 @@ console.log('# 목에 거는 소품이 머리에 가려지지 않는가');
           Object.keys(window.GEAR.items[slot]).forEach((k) => {
             let side = window.GEAR.items[slot][k].side;
             if (side.poses && side.poses[part.pose]) side = side.poses[part.pose];
+            const art = artOf(side, a[2]);
             // 아래 여백은 안 보이니 **칠해진 아랫변**으로 잰다
             let ink = -1;
-            side.art.forEach((r, y) => { if (r.replace(/\./g, '') !== '') ink = y; });
+            art.forEach((r, y) => { if (r.replace(/\./g, '') !== '') ink = y; });
             const bottom = a[1] + side.at[1] + ink + 1;
             // 손에 든 것은 바닥에 내려놓으므로 바닥 줄까지가 정상이다
             if (bottom > floor) stray.push(key + ' ' + pname + '/' + k + ' ' + bottom + '>' + floor);
@@ -1649,6 +1691,56 @@ console.log('# 목에 거는 소품이 머리에 가려지지 않는가');
     });
     ok('누운 그림에서 소품이 몸 밖으로 흘러내리지 않는다', stray.length === 0,
        stray.slice(0, 4).join(', '));
+
+    /* ★소품이 몸 밖으로 안 나가는 것만으로는 모자랐다 — 목에 감는 띠가
+       **몸이 없는 허공에서** 시작했다(엎드려는 머리와 가슴 사이가 벌어져
+       있다). 그림 밖으로 나가지 않으니 앞의 검사는 통과했고, 앱을 띄워
+       보고서야 알았다. 그래서 칠해진 칸마다 그 자리에 몸이 있는지 센다. */
+    {
+      const ink = (rows, x, y) => !!(rows[y] && rows[y][x] && rows[y][x] !== '.');
+      const airborne = [];
+      ['capybara', 'dodam', 'shiba', 'crab'].forEach((key) => {
+        const sp = window.SPECIES.get(key);
+        [['자기', sp.sleep], ['엎드려', sp.lie]].forEach(([pname, part]) => {
+          if (!part || !part.gearAt) return;
+          ['body', 'eyes'].forEach((slot) => {
+            const a = part.gearAt[slot];
+            if (!a) return;
+            Object.keys(window.GEAR.items[slot]).forEach((k) => {
+              let side = window.GEAR.items[slot][k].side;
+              if (side.poses && side.poses[part.pose]) side = side.poses[part.pose];
+              const art = artOf(side, a[2]);
+              let on = 0, off = 0;
+              art.forEach((row, y) => {
+                for (let x = 0; x < row.length; x++) {
+                  if (row[x] === '.') continue;
+                  const X = a[0] + side.at[0] + x, Y = a[1] + side.at[1] + y;
+                  // ★여유를 한 줄이라도 주면 안 잡힌다. 띠 윗줄이 허공이어도
+                  // 바로 아래 가슴 윤곽이 걸려서 통과해 버렸다 — 걸친 것은
+                  // **그 자리에** 몸이 있어야 한다
+                  ink(part.rows, X, Y) ? on++ : off++;
+                }
+              });
+              const pct = Math.round(off / (on + off) * 100);
+              if (pct > 5) airborne.push(key + ' ' + pname + '/' + k + ' ' + pct + '%');
+            });
+          });
+        });
+      });
+      ok('걸친 것이 허공에 뜨지 않는다', airborne.length === 0,
+         airborne.slice(0, 4).join(', '));
+    }
+
+    /* 안경은 눈이 보여야 안경이다. 위 테를 두 줄로 두껍게 그렸더니 얼굴에
+       검은 막대가 붙은 꼴이 됐다 — 알 속이 비어 있는지 본다.
+       선글라스만은 가리는 것이 본래 구실이라 뺀다. */
+    ['horn', 'rimless', 'half'].forEach((k) => {
+      const art = window.GEAR.items.eyes[k].side.art;
+      // ★뒤쪽 여백까지 '비어 있다'로 세면 안 된다 — 통짜로 칠해도 통과했다.
+      // 알은 왼쪽 네 칸이므로 거기 속이 뚫렸는지만 본다
+      const hollow = art.some((r) => r[1] === '.' && r[2] === '.');
+      ok('안경 ' + k + ' 은 알 속이 비어 있다', hollow, art.join(' / '));
+    });
 
     /* 게가 눕는 그림만은 옆이 아니라 정면이다(등딱지와 좌우 집게).
        옆모습 안경알 하나를 얹으면 등딱지에 붙인 스티커가 된다. */

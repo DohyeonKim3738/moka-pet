@@ -742,9 +742,9 @@ var BODY  = [12, 12, 12, 12, 12, 16, 18, 20, 22, 22, 22, 22, 22, 22, 22, 20, 18,
      어디인지 알려 주면, pixel.js 가 소품의 옆모습 그림을 그 자리에 얹는다.
      손에 들던 것은 코앞 바닥에 내려놓는다 — 자면서 빗자루를 쥐고 있을
      수는 없으니. */
-  var LYING_GEAR = { head: [7, 5], eyes: [5, 8], body: [14, 3], hand: [-11, 16] };
-  var ALERT_GEAR = { head: [7, 0], eyes: [5, 3], body: [16, 6], hand: [-11, 16] };
-  var CRAB_GEAR  = { head: [17, 0], eyes: [12, 4], body: [15, 1], hand: [-11, 13] };
+  var LYING_GEAR = { head: [7, 5], eyes: [5, 8], body: [11, 7, 8], hand: [-10, 16] };
+  var ALERT_GEAR = { head: [7, 0], eyes: [5, 3], body: [11, 8, 7], hand: [-10, 16] };
+  var CRAB_GEAR  = { head: [17, 0], eyes: [12, 4], body: [15, 4, 9], hand: [-10, 13] };
 
   function lyingAlert(opts) {
     var g = shadeRows(fromSpans(36, 17, ALERT_SPANS), 1, 2);

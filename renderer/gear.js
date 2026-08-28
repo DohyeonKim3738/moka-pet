@@ -583,26 +583,28 @@
 
   /* 안경은 옆에서 보면 알 하나와 뒤로 뻗은 다리다. 아이가 왼쪽을 보므로
      알이 왼쪽, 다리가 오른쪽으로 간다. */
-  EYES.horn.side    = { at: [-1, -2], art: ['KKKKK....',
-                                            'KKKKK....',
-                                            'K...KKKKK',
-                                            'K...K....',
-                                            'KKKKK....'] };
-  EYES.rimless.side = { at: [-1, -2], art: ['.AAAA....',
-                                            '.A..A....',
-                                            '.A..AAAAA',
-                                            '.A..A....',
-                                            '.AAAA....'] };
-  EYES.half.side    = { at: [-1, -2], art: ['KKKKK....',
-                                            'K...K....',
-                                            'K...KKKKK',
-                                            'K...K....',
+  /* 안경은 옆에서 보면 알 하나와 뒤로 뻗은 다리다. 아이가 왼쪽을 보므로
+     알이 왼쪽, 다리가 오른쪽(귀 쪽)으로 간다.
+
+     ★알 속은 비워 둔다. 처음에 위 테를 두 줄로 두껍게 그렸더니 눈이 통째로
+     가려져 얼굴에 검은 막대가 붙은 꼴이 됐다 — 안경은 눈이 보여야 안경이다.
+     선글라스만은 가리는 것이 본래 구실이라 채운다. */
+  EYES.horn.side    = { at: [-1, -1], art: ['KKKK.....',
+                                            'K..KKKKKK',
+                                            'K..K.....',
+                                            'KKKK.....'] };
+  EYES.rimless.side = { at: [-1, -1], art: ['A..A.....',
+                                            'A..AAAAAA',
+                                            'A..A.....',
+                                            'AAAA.....'] };
+  EYES.half.side    = { at: [-1, -1], art: ['KKKK.....',
+                                            'K..KKKKKK',
+                                            'K..K.....',
                                             '.........'] };
-  EYES.sun.side     = { at: [-1, -2], art: ['KKKKK....',
-                                            'KHKKK....',
-                                            'KKKKKKKKK',
-                                            'KKKKK....',
-                                            'KKKKK....'] };
+  EYES.sun.side     = { at: [-1, -1], art: ['KKKK.....',
+                                            'KHKKKKKKK',
+                                            'KKKK.....',
+                                            'KKKK.....'] };
 
   /* 게가 눕는 그림은 정면이다 — 접힌 눈자루 두 개가 나란히 보인다.
      옆모습 안경알 하나를 얹으면 등딱지에 붙인 스티커처럼 보인다. */
@@ -615,30 +617,51 @@
 
   /* 옆으로 누우면 목은 **세로로** 지나간다 — 머리가 왼쪽, 몸이 오른쪽이니
      목을 감는 것은 세로 띠로 보인다. 정면용 26 폭 그림을 눕혀 얹으면 몸
-     밖으로 한참 삐져나가고, 귀 위에 걸린다. 그래서 어깻죽지를 세로로 감는
-     띠를 따로 그린다.
+     밖으로 삐져나가고 귀 위에 걸린다.
 
-     아홉 줄로 맞춘 것은 세 자세(자기·엎드려·게)의 어깨 높이가 제각각이라
-     그렇다 — 기준점을 목 위쪽에 두고 길이를 가장 짧은 자세에 맞추면 어디서도
-     몸 밖으로 흘러내리지 않는다. */
-  function sideBody(key, art) { BODY[key].side = { art: art, at: [0, 0] }; }
+     ★띠 길이를 그림으로 못 박으면 안 된다. 자세마다 목의 두께가 다르다 —
+     자기는 여덟 줄, 엎드려는 일곱 줄, 게는 열세 줄이다. 아홉 줄짜리 그림
+     하나로 셋을 덮으려 했더니 엎드려에서는 몸 밖으로 흘러내리고, 자기에서는
+     등 위 허공에서 시작했다. 그래서 **길이를 받아 그때그때 짜낸다.** */
+  function bandOf(h, fill, o) {
+    o = o || {};
+    var rows = ['.KKKK.'];
+    for (var i = 0; i < h - 2; i++) rows.push('K' + fill + fill + fill + fill + 'K');
+    rows.push('.KKKK.');
+    (o.top || []).forEach(function (r, i) { if (1 + i < h - 1) rows[1 + i] = r; });
+    (o.bottom || []).forEach(function (r, i) {
+      var y = h - 1 - (o.bottom.length - i);
+      if (y > 0) rows[y] = r;
+    });
+    if (o.mid) {
+      var y0 = Math.max(1, Math.round((h - o.mid.length) / 2));
+      o.mid.forEach(function (r, i) { if (y0 + i < h - 1) rows[y0 + i] = r; });
+    }
+    return rows;
+  }
 
-  sideBody('scarf',    ['.KKKK.', 'KRRRRK', 'KRRRRK', 'KRRRRK', 'KRRRRK',
-                        'KRRRRK', '.KKKK.', '.KRRK.', '.KKKK.']);
-  sideBody('bowtie',   ['.KKKK.', 'KKKKKK', 'KKKKKK', 'KKKKKK', 'KKKKKK',
-                        '.KKKK.', 'KRRHRK', 'KRRRRK', '.KKKK.']);
-  sideBody('medal',    ['.RRRR.', 'RRRRRR', 'RRRRRR', 'RRRRRR', '.RRRR.',
-                        '.KKKK.', 'KYYYYK', 'KYyWYK', '.KKKK.']);
-  sideBody('hoodie',   ['.KKKK.', 'KCCCCK', 'KCCCCK', 'KCCCCK', 'KCCCCK',
-                        'KCCCCK', 'KCCCCK', 'KCCCCK', '.KKKK.']);
-  sideBody('overalls', ['.KKKK.', 'KCCCCK', 'KC..CK', 'KC..CK', 'KCCCCK',
-                        'KYCCYK', 'KCCCCK', 'KCCCCK', '.KKKK.']);
-  sideBody('apron',    ['.KKKK.', 'KRRRRK', '.KKKK.', 'KWWWWK', 'KWWWWK',
-                        'KWWWWK', 'KWWWWK', 'KWWWWK', '.KKKK.']);
-  sideBody('robe',     ['.KKKK.', 'KCCCCK', 'KCCCCK', 'KYYYYK', 'KCCCCK',
-                        'KCCCCK', 'KYYYYK', 'KCCCCK', '.KKKK.']);
-  sideBody('cape',     ['.YYYY.', 'KGGGGK', 'KGGGGK', 'KGGGGK', 'KGGGGK',
-                        'KGGGGK', 'KGGGGK', 'KGGGGK', '.KKKK.']);
+  function sideBody(key, fill, o) {
+    BODY[key].side = { at: [0, 0], build: function (h) { return bandOf(h, fill, o); } };
+  }
+
+  sideBody('scarf', 'R', { bottom: ['.KRRK.', '.KRRK.', '.KKKK.'] });
+  /* 나비넥타이는 띠를 통째로 검게 칠하면 목에 검은 덩어리가 걸린 꼴이 된다.
+     가는 끈에 나비를 매단 모양이라야 나비넥타이로 읽힌다. */
+  BODY.bowtie.side = { at: [0, 0], build: function (h) {
+    var rows = [];
+    for (var i = 0; i < h; i++) rows.push('..KK..');
+    var y0 = Math.max(0, Math.round((h - 5) / 2));
+    ['.KKKK.', 'KRRRRK', 'KRHHRK', 'KRRRRK', '.KKKK.'].forEach(function (r, i) {
+      if (y0 + i < h) rows[y0 + i] = r;
+    });
+    return rows;
+  } };
+  sideBody('medal',    'R', { bottom: ['.KKKK.', 'KYYYYK', 'KYyWYK', '.KKKK.'] });
+  sideBody('hoodie',   'C');
+  sideBody('overalls', 'C', { mid: ['KYCCYK'] });
+  sideBody('apron',    'W', { top: ['KRRRRK'] });
+  sideBody('robe',     'C', { mid: ['KYYYYK'] });
+  sideBody('cape',     'G', { top: ['.YYYY.'] });
 
   /* 손에 든 것은 누우면 내려놓는다 — 코앞 바닥에 둔다. 서 있을 때 쓰던
      그림을 그대로 쓴다(물건은 어느 쪽에서 봐도 물건이다). 다만 빗자루와
