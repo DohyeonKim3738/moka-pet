@@ -1087,6 +1087,66 @@ console.log('# 왜 지금 못 하는가');
   ok('트레이 메뉴의 재주가 판정을 쓴다',
      /care\.blocked\(c\)\.show/.test(mainSrc));
 
+  /* ---------- 알아두기가 사실을 말하는가 ----------
+     안내는 틀리면 없느니만 못하다. "즐거움이 절반만"이라 적어 놓고 코드가
+     0.7 이면 거짓말이다. 적힌 값이 아니라 **실제 동작**과 맞대어 본다. */
+  {
+    const g = care.guide();
+
+    // 점선의 뜻: 방금 준 것을 또 주면 즐거움이 그만큼만 오른다
+    const p1 = care.blank(); care.hatch(p1); p1.fun = 10;
+    const first = p1.fun; care.actPlay(p1, 'ball');
+    const gain1 = p1.fun - first;
+    p1.fun = 10; care.actPlay(p1, 'ball');
+    const gain2 = p1.fun - 10;
+    ok('연달아 하면 즐거움이 안내한 만큼만 오른다',
+       Math.abs(gain2 - Math.round(gain1 * g.menu.againFun)) <= 1,
+       gain1 + ' → ' + gain2 + ' (안내: ' + g.menu.againFun + ')');
+    ok('다른 것을 주면 온전히 오른다', (function(){
+      const p = care.blank(); care.hatch(p); p.fun = 10;
+      care.actPlay(p, 'ball'); p.fun = 10;
+      const before = p.fun; care.actPlay(p, 'hide');
+      return p.fun - before > gain2;
+    })());
+
+    // 화면이 그 뜻을 실제로 말해 주는가 — 표시만 하고 뜻을 안 적으면 수수께끼다
+    ok('점선 단추가 왜 점선인지 말해 준다',
+       /방금 줬어요/.test(careSrc) && /data-why="/.test(careSrc));
+    ok('점선 표시가 아직 살아 있다', /\.again\{border-style:dashed/.test(careSrc));
+
+    /* 경험치는 모자랄 때 채워 줄수록 크다. 부등호로 재야 한다 — 숫자를
+       적어 두면 award() 를 손볼 때마다 검사가 같이 틀린다. */
+    const gains = g.exp.map((e) => e.gain);
+    ok('배고플수록 경험치가 크다',
+       gains.every((v, i) => i === 0 || v <= gains[i - 1]) && gains[0] > gains[gains.length - 1],
+       gains.join(' > '));
+
+    // 안내한 잠금 횟수가 실제 잠금과 같은가
+    const feedItems = g.menu.courses[0].items;
+    ok('차림표의 열리는 차례가 실제와 같다',
+       feedItems.map((i) => i.need).join(',') ===
+       care.MEALS.map((m) => m.after || 0).join(','),
+       feedItems.map((i) => i.need).join(','));
+
+    // 자리 비움 상한이 안내한 값과 같은가 — 12시간과 200시간이 같아야 한다
+    const away = (h) => {
+      const c = care.blank(); care.hatch(c);
+      c.lastTick = Date.now() - h * 3600000;
+      care.advance(c, Date.now());
+      return Math.round(c.hunger);
+    };
+    ok('안내한 시간을 넘기면 더 줄지 않는다',
+       away(g.rest.offlineH) === away(g.rest.offlineH * 10),
+       away(g.rest.offlineH) + ' vs ' + away(g.rest.offlineH * 10));
+
+    /* ★칭호 사다리는 일부러 안 넣는다 — 성장 탭이 다음 단계를 「?」로 가려
+       두는데 알아두기에서 펼치면 그 재미를 없앤다. 나중에 "정보니까 넣자"고
+       되돌리지 않도록 못 박는다. */
+    ok('알아두기가 다음 단계를 미리 알려주지 않는다',
+       !/원로|현자|영물|전설/.test(careSrc.slice(careSrc.indexOf('function drawGuide'),
+                                                careSrc.indexOf('function drawBadges'))));
+  }
+
   /* ★탭에 이름표를 안 달면 그 조각은 **모든 탭에 남는다**. 알아두기 탭에
      「치우기 — 치울 게 없어요」가 따라 나왔고, 예전에는 성장 카드와 게임
      카드가 그랬다. 눈으로 보기 전에는 안 걸리는 종류라 못 박는다.

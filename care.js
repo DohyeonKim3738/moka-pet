@@ -642,11 +642,16 @@ function award(c, amount) {
    up for the thing it has come to love, and it is unimpressed by the same
    dish twice running. Both land on 즐거움 only — being bored of the menu
    should never mean going hungry. */
+/* 차림표의 두 규칙. 화면(점선 표시·알아두기 탭)이 이 값을 다시 적지 않도록
+   여기서만 센다 — 「즐거움 절반」이라 적어 놓고 코드가 0.7 이면 거짓말이다. */
+const AGAIN_FUN = 0.5;   // 방금 준 것을 또 주면 즐거움이 이만큼
+const FAV_FUN = 3;       // 제일 좋아하는 것이면 즐거움이 이만큼 더
+
 function eat(c, food, prevKey) {
   const again = c[prevKey] === food.id;
   const loved = favourite(c, MEALS.concat(SNACKS).concat(PLAYS)) === food;
-  let fun = food.fun + (loved ? 3 : 0);
-  if (again) fun = Math.round(fun * 0.5);
+  let fun = food.fun + (loved ? FAV_FUN : 0);
+  if (again) fun = Math.round(fun * AGAIN_FUN);
   c[prevKey] = food.id;
   if (!c.diet) c.diet = {};
   c.diet[food.id] = (c.diet[food.id] || 0) + 1;
@@ -1217,6 +1222,49 @@ function buildTable() {
   });
 }
 
+/* 차림표에 붙는 표시의 뜻과, 무엇을 몇 번 해야 열리는지.
+   ★칭호 사다리는 일부러 넣지 않는다 — 성장 탭이 다음 단계를 「?」로 가려
+   두는데 여기서 전부 펼치면 그 재미를 없애는 것이다. 알려 주는 것과 김을
+   빼는 것은 다르다. */
+function menuTable() {
+  const courses = [
+    { act: 'feed',  label: '밥',   list: MEALS },
+    { act: 'snack', label: '간식', list: SNACKS },
+    { act: 'play',  label: '놀기', list: PLAYS }
+  ];
+  return {
+    againFun: AGAIN_FUN,
+    favFun: FAV_FUN,
+    courses: courses.map((co) => ({
+      label: co.label,
+      items: co.list.map((f) => ({ label: f.label, need: f.after || 0, fun: f.fun }))
+    }))
+  };
+}
+
+/* 경험치는 **필요할 때 돌봐야** 오른다. 배부른 아이에게 밥을 줘도 배만
+   부르고 나이는 안 든다 — 게임에서 가장 안 보이는 규칙이라 실제로 태워
+   재 본다(숫자를 여기 적으면 award() 를 고칠 때 어긋난다). */
+function expTable() {
+  return [10, 40, 70, 90].map((hunger) => {
+    const c = blank();
+    hatch(c);
+    c.hunger = hunger;
+    const r = actFeed(c, 'korean');
+    return { hunger: hunger, gain: (r && r.gain) || 0 };
+  });
+}
+
+function restTable() {
+  return {
+    offlineH: OFFLINE_CAP_MIN / 60,
+    sleepFullH: SLEEP_REFILL_MIN / 60,
+    sleepScale: Math.round(SLEEP_DRAIN_SCALE * 100),
+    poopEveryH: POOP_EVERY_MIN / 60,
+    poopMax: POOP_MAX
+  };
+}
+
 function guide() {
   return {
     rules: { solo: TRAIT_SOLO, lead: TRAIT_LEAD, min: TRAIT_MIN,
@@ -1224,7 +1272,10 @@ function guide() {
     traits: TRAIT_KEYS.map((k) => ({ key: k, name: PERSONALITY[k], note: NATURE_NOTE[k] })),
     sources: traitSources(),
     natures: natureTable(),
-    builds: buildTable()
+    builds: buildTable(),
+    menu: menuTable(),
+    exp: expTable(),
+    rest: restTable()
   };
 }
 

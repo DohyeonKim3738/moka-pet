@@ -1060,11 +1060,18 @@ button:disabled{pointer-events:none}
           if (f.id === fav) cls.push('fav');
           if (f.id === last) cls.push('again');
         }
-        // 잠긴 것은 무엇을 해야 열리는지, 지금 안 되는 것은 왜 안 되는지.
-        // 올려두면 말해 준다.
+        /* 잠긴 것은 무엇을 해야 열리는지, 지금 안 되는 것은 왜 안 되는지.
+           그리고 ★점선(방금 준 것)은 왜 점선인지 — 여태 아무 데도 안 적혀
+           있어서 "왜 얘만 점선이지?" 하고 물어보게 만들었다. 표시를 해 두고
+           뜻을 안 적으면 표시가 아니라 수수께끼다. */
         var tip = f.lock ? (f.label + (f.neun || '은') + ' ' + label + ' ' +
                             f.need + '번 (' + done + '/' + f.need + ')')
-                         : (full || '');
+                         : (full ||
+                            (f.id === last
+                               ? '방금 줬어요 — 연달아 주면 즐거움이 절반만 올라요'
+                               : (f.id === fav
+                                    ? '제일 좋아해요 — 즐거움이 조금 더 올라요'
+                                    : '')));
         return '<button data-eat="' + act + ':' + f.id + '"' +
                (cls.length ? ' class="' + cls.join(' ') + '"' : '') +
                (tip ? ' title="' + tip + '" data-why="' + tip + '"' : '') +
@@ -1356,6 +1363,40 @@ button:disabled{pointer-events:none}
              cell(e.walkBurn, bb.walkBurn, '배', 'busyHigh') +
              '</tr>';
          }).join('') + '</tbody></table></div>';
+
+    h += '<h3>차림표의 표시</h3>';
+    h += '<p class="lead">밥·간식·놀기 단추에 붙는 표시입니다. ' +
+         '<b style="border-bottom:1px dashed currentColor">점선</b>은 <b>방금 준 것</b>으로, ' +
+         '연달아 주면 즐거움이 ' + Math.round(g.menu.againFun * 100) + '%만 오릅니다. ' +
+         '진하게 표시된 것은 이 아이가 <b>제일 좋아하는 것</b>이라 즐거움이 ' +
+         g.menu.favFun + ' 더 오릅니다. 🔒는 아직 안 열린 것입니다.</p>';
+    h += '<div class="wrap"><table><thead><tr><th>무엇</th>' +
+         '<th style="text-align:left">열리는 차례 (그 종류를 몇 번 하면)</th>' +
+         '</tr></thead><tbody>' +
+         g.menu.courses.map(function(co){
+           return '<tr><td>' + esc(co.label) + '</td><td style="text-align:left">' +
+             co.items.map(function(it){
+               return esc(it.label) + (it.need ? ' <span style="opacity:.6">' + it.need + '번</span>' : ' <span style="opacity:.6">처음부터</span>');
+             }).join('　·　') + '</td></tr>';
+         }).join('') + '</tbody></table></div>';
+
+    h += '<h3>경험치는 필요할 때만 오릅니다</h3>';
+    h += '<p class="lead">배부른 아이에게 밥을 줘도 배만 부르고 나이는 잘 안 듭니다. ' +
+         '<b>모자랄 때 채워 주는 것</b>이 가장 크게 쳐집니다. 밥 한 끼로 얻는 경험치입니다.</p>';
+    h += '<div class="wrap"><table><thead><tr><th>줄 때 배고픔</th><th>얻는 경험치</th></tr></thead><tbody>' +
+         g.exp.map(function(e){
+           return '<tr><td style="text-align:left">' + e.hunger + ' 쯤</td>' +
+                  '<td>' + e.gain + '</td></tr>';
+         }).join('') + '</tbody></table></div>';
+    h += '<p class="note">배고픔이 95를 넘으면 아예 받지 않습니다. ' +
+         '즐거움·기운도 같은 규칙이라, 바가 줄었을 때 채워 주는 편이 빨리 자랍니다.</p>';
+
+    h += '<h3>자리를 비워도 괜찮습니다</h3>';
+    h += '<p class="lead">오래 안 봐도 <b>' + g.rest.offlineH + '시간치까지만</b> 줄어듭니다. ' +
+         '하루를 비우든 일주일을 비우든 돌아왔을 때 상태는 같습니다 — 벌은 없습니다. ' +
+         '응아는 ' + g.rest.poopEveryH + '시간에 하나씩, 많아야 ' + g.rest.poopMax + '개까지 쌓입니다.</p>';
+    h += '<p class="note">잠들면 ' + g.rest.sleepFullH + '시간이면 기운이 가득 차고, ' +
+         '자는 동안에는 배고픔과 즐거움이 평소의 ' + g.rest.sleepScale + '% 속도로만 줄어듭니다.</p>';
 
     h += '</div>';
     host.innerHTML = h;
