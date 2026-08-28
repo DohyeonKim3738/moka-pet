@@ -99,6 +99,11 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
   border:1px solid var(--line);background:transparent;color:var(--muted)}
 #look .chip.on{border-color:var(--accent);color:var(--accent)}
 #look #bare{margin-top:8px}
+/* 막힌 이유를 title 로만 달아 두었더니, 상태가 갱신되며 버튼이 다시
+   그려질 때 마우스가 그대로면 hover 가 다시 잡히지 않아 한 번 보고 나면
+   끝이었다. 눈에 보이는 줄로 적는다. */
+#whyacts{margin-top:6px;font-size:11px;color:var(--muted);line-height:1.6}
+#whyacts:empty{display:none}
 
 #missions ul{list-style:none;margin:0;padding:0}
 #missions li{display:flex;align-items:baseline;gap:8px;font-size:12px;padding:3px 0}
@@ -295,6 +300,7 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
         <button id="sleep">재우기</button>
         <button id="clean">치우기</button>
       </div>
+      <div class="whyacts" id="whyacts"></div>
       <div class="menu" id="menu"></div>
       <div class="sub" style="margin-top:14px">
         <input type="checkbox" id="chat">
@@ -1071,10 +1077,10 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     // 나머지는 care.js 의 판정(c.blocked)만 쓴다. 여기서 조건을 다시 적으면
     // 그 순간 두 벌이 되고, 실제로 훈련이 세 살 전에도 눌리던 적이 있다.
     var why = c.blocked || {};
+    var NAMES = { walk: '산책', train: '훈련', clean: '치우기', sleep: '재우기' };
     ['walk', 'train', 'clean'].forEach(function(k){
       var b = document.getElementById(k);
       b.disabled = !!why[k];
-      // 흐려지기만 하면 왜 안 되는지 알 길이 없다 — 올려두면 말해 준다
       b.title = why[k] || '';
     });
     var sleep = document.getElementById('sleep');
@@ -1082,6 +1088,12 @@ input[type=checkbox]{accent-color:var(--fill);width:15px;height:15px}
     sleep.disabled = !!why.sleep;
     sleep.title = why.sleep ||
       (c.napKind === 'auto' ? '스스로 잠들었어요 — 깨우면 그대로 깨어 있어요' : '');
+    // 막힌 것들을 한 줄로 적어 둔다 — 툴팁은 다시 그려지면 사라진다
+    var stuck = ['walk', 'train', 'sleep', 'clean']
+      .filter(function(k){ return why[k]; })
+      // 은/는 은 받침을 따져야 한다 — 줄표로 두면 그럴 일이 없다
+      .map(function(k){ return NAMES[k] + ' — ' + why[k]; });
+    document.getElementById('whyacts').textContent = stuck.join('   ·   ');
 
     document.getElementById('chat').checked = c.chat !== false;
     document.getElementById('stretch').checked = !!c.stretch;
