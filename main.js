@@ -128,7 +128,7 @@ function defaults() {
     buddies: [],
     taught: {},
     zoom: { enabled: true },
-    update: { enabled: true, repo: 'DohyeonKim3738/moka-pet', skip: '' },
+    update: { enabled: true, repo: 'DohyeonKim3738/moka-pet', skip: '', lastError: '' },
     missions: { done: [], badge: '' },
     home: { enabled: false },
     species: 'capybara',
@@ -1601,13 +1601,47 @@ function startWinAutoUpdate() {
     });
   });
 
-  autoUpdater.on('error', () => {
-    // fall back to the honest path rather than failing in silence
+  /* ★예전에는 에러를 통째로 버리고 곧장 '받으러 가기'로 넘어갔다. 그래서
+     윈도우에서 자동 설치가 안 되고 GitHub 만 열려도 **왜인지 알 방법이
+     없었다** — 앱·빌드·피드가 다 멀쩡한데 증상만 남는다. 이제 이유를 남긴다.
+
+     그리고 한 번은 스스로 고쳐 본다. 이 증상의 흔한 원인이 받다 만 설치
+     파일이 캐시에 남아 계속 같은 자리에서 넘어지는 것인데, 그 캐시는 앱이
+     만든 임시 파일이라 지워도 잃을 것이 없다. */
+  autoUpdater.on('error', (err) => {
+    const why = (err && (err.message || String(err))) || '알 수 없는 오류';
+    cfg.update.lastError = why.slice(0, 300);
+    saveConfig();
+
+    if (!updateRetried && clearUpdateCache()) {
+      updateRetried = true;
+      autoUpdater.checkForUpdates().catch(() => { autoUpdater = null; checkUpdate(false); });
+      return;
+    }
     autoUpdater = null;
     checkUpdate(false);
   });
 
   return true;
+}
+
+let updateRetried = false;
+
+/* 받다 만 설치 파일만 지운다. electron-updater 가 %LOCALAPPDATA% 아래
+   `updaterCacheDirName`(app-update.yml)/pending 에 쌓아 두는 것이라, 앱이
+   만든 임시 파일이지 사용자 것이 아니다. 경로를 한 칸이라도 벗어나면
+   아무것도 지우지 않는다. */
+function clearUpdateCache() {
+  if (!IS_WIN) return false;
+  try {
+    const base = process.env.LOCALAPPDATA;
+    if (!base) return false;
+    const dir = path.join(base, 'moka-pet-updater', 'pending');
+    if (!dir.startsWith(path.join(base, 'moka-pet-updater'))) return false;
+    if (!fs.existsSync(dir)) return false;
+    fs.rmSync(dir, { recursive: true, force: true });
+    return true;
+  } catch (e) { return false; }
 }
 
 async function checkUpdate(byHand) {
@@ -1633,7 +1667,13 @@ async function checkUpdate(byHand) {
     message: '새 버전 v' + found.version + '이 나왔어요',
     detail: (found.notes ? found.notes + '\n\n' : '') +
             '지금 버전은 v' + app.getVersion() + '이에요. ' +
-            '내려받아 설치하면 키우던 아이들은 그대로 이어집니다.'
+            '내려받아 설치하면 키우던 아이들은 그대로 이어집니다.' +
+            /* 윈도우는 원래 앱 안에서 바로 설치된다. 여기까지 왔다는 건 그게
+               실패했다는 뜻이므로, 왜인지 같이 보여 준다 — 안 보여 주면
+               "왜 GitHub 가 열리지?" 에서 더 나아갈 수가 없다. */
+            ((IS_WIN && cfg.update.lastError)
+               ? '\n\n(앱 안에서 설치하지 못했어요 — ' + cfg.update.lastError + ')'
+               : '')
   });
   if (r.response === 1) shell.openExternal(found.url);
   else if (!byHand) { cfg.update.skip = found.version; saveConfig(); }
